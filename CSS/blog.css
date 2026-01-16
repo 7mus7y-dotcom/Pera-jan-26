@@ -1,0 +1,628 @@
+/*
+ * Pera Property – Blog & Single Article Styles (trimmed)
+ * Depends on: main.css, slider.css, cards-post.css, posts.css
+ *
+ * NOTE:
+ * - Post card component styling has been moved to: posts.css
+ * - Sidebar strip card styling has been moved to: cards-post.css
+ */
+
+
+/* =======================================================
+   2. POSTS GRID — MASONRY LAYOUT (LAYOUT ONLY)
+   ======================================================= */
+
+.section-posts {
+  background: var(--bg-soft);
+}
+
+.section-posts .container {
+  max-width: var(--container);
+  margin-inline: auto;
+}
+
+/* .posts-grid moved to main.css as cards-masonry */
+
+
+/* =======================================================
+   4. PAGINATION
+   ======================================================= */
+
+.posts-pagination {
+  margin-top: 40px;
+  text-align: center;
+}
+
+.posts-pagination ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.posts-pagination li {
+  margin: 0;
+}
+
+.posts-pagination a,
+.posts-pagination span {
+  display: inline-block;
+  min-width: 34px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #d4d4d8;
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: var(--text-soft);
+  line-height: 1.2;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* Active page */
+.posts-pagination .current {
+  background: var(--brand);
+  color: #ffffff;
+  border-color: var(--brand);
+}
+
+/* Hover */
+.posts-pagination a:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .posts-pagination ul {
+    gap: 6px;
+  }
+
+  .posts-pagination a,
+  .posts-pagination span {
+    min-width: 30px;
+    padding: 5px 10px;
+  }
+}
+
+
+/* =======================================================
+   5. SINGLE ARTICLE HERO
+   ======================================================= */
+
+.hero.hero-article {
+  position: relative;
+  margin-top: -120px;
+  min-height: 55vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.hero-article-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1;
+}
+
+.hero-article .hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: var(--container);
+  width: 100%;
+  margin-inline: auto;
+  padding: 120px 20px 20px;
+}
+
+/* Meta rows */
+.article-meta-top {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85rem;
+  margin: var(--space-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.article-meta-date {
+  opacity: 0.9;
+}
+
+.article-meta-cat {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  text-decoration: none;
+  color: #ffffff;
+}
+
+.article-meta-cat:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+.article-meta-secondary {
+  margin-top: var(--space-xs);
+  font-size: 0.7rem;
+  color: #e5e7eb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.article-meta-item {
+  white-space: nowrap;
+}
+
+.article-meta-separator {
+  opacity: 0.7;
+}
+
+
+/* =======================================================
+   6. SINGLE ARTICLE LAYOUT + SIDEBAR
+   ======================================================= */
+
+.section-article .container {
+  max-width: var(--container);
+  margin-inline: auto;
+}
+
+.article-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: flex-start;
+}
+
+/* allow children to shrink inside the grid */
+.article-main,
+.article-sidebar {
+  min-width: 0;
+}
+
+/* Main article body */
+.article-main .article-body {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.article-body p {
+  margin-bottom: 1.1em;
+}
+
+.article-body h2,
+.article-body h3 {
+  margin-top: 1.8em;
+  margin-bottom: 0.6em;
+}
+
+/* Sidebar column */
+.article-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Generic sidebar blocks (block shell only; card strips in cards-post.css) */
+.sidebar-block {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: var(--space-xs);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar headings (all h3 in the sidebar) */
+.article-sidebar h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 20px;
+  line-height: 1.3;
+}
+
+.sidebar-text {
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+}
+
+.sidebar-note {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+/* Sidebar CTA – right aligned, shrink-wrapped */
+.sidebar-cta {
+  margin-top: 10px;
+  align-self: flex-end;
+  display: inline-flex;
+}
+
+.sidebar-cta .btn {
+  width: auto;
+  display: inline-flex;
+}
+
+
+/* =======================================================
+   7. ARTICLE TABLES – RESPONSIVE + STRIPED
+   ======================================================= */
+
+/* Wrapper from Gutenberg + your HTML */
+.section-article .article-body .wp-block-table {
+  max-width: 100%;
+  width: 100%;
+  margin: 1.5rem 0;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+/* Actual table */
+.section-article .article-body .wp-block-table table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+/* Header */
+.section-article .article-body .wp-block-table thead th {
+  background: var(--brand);
+  color: #ffffff;
+  font-weight: 600;
+  text-align: left;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+/* Cells */
+.section-article .article-body .wp-block-table th,
+.section-article .article-body .wp-block-table td {
+  padding: 0.55rem 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Reset any global row colours, then stripe tbody only */
+.section-article .article-body .wp-block-table tbody tr {
+  background: transparent;
+}
+
+/* Zebra striping (odd/even rows) */
+.section-article .article-body .wp-block-table tbody tr:nth-child(odd) {
+  background: #f9fafb;
+}
+
+.section-article .article-body .wp-block-table tbody tr:nth-child(even) {
+  background: #f3f4f6;
+}
+
+/* Row hover */
+.section-article .article-body .wp-block-table tbody tr:hover {
+  background: #e5f0ff;
+}
+
+/* Borders between rows */
+.section-article .article-body .wp-block-table tbody td {
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Code blocks in article body */
+.section-article .article-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+
+
+/* =======================================================
+   10. ARTICLE CONTACT SECTION
+   ======================================================= */
+
+.section-article-contact {
+  background: #000022;
+  color: #f9fafb;
+  padding-top: 40px;
+  padding-bottom: 40px;
+}
+
+.section-article-contact .container {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding: 0 20px;
+}
+
+.section-article-contact p,
+.section-article-contact li,
+.section-article-contact .contact-blog-points li {
+  color: #e5e7eb;
+}
+
+.section-article-contact a:not(.btn) {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+/* Layout */
+.contact-blog-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.contact-blog-text {
+  flex: 1 1 280px;
+  min-width: 260px;
+}
+
+.contact-blog-text h2 {
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+
+.contact-blog-text p {
+  margin-bottom: 10px;
+}
+
+.contact-blog-points {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.contact-blog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 0 0 260px;
+}
+
+.contact-blog-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* WhatsApp button inside article contact band */
+.section-article-contact .contact-blog-actions .btn.btn-outline {
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.section-article-contact .contact-blog-actions .btn.btn-outline:hover {
+  background: rgba(255,255,255,0.1) !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+
+/* =======================================================
+   11. RESPONSIVE – ARTICLE + SIDEBAR + CONTACT
+   ======================================================= */
+
+@media (max-width: 900px) {
+  .article-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .article-sidebar {
+    order: 2;
+  }
+
+  .article-main {
+    order: 1;
+  }
+
+  .contact-blog-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .contact-blog-actions {
+    width: 100%;
+  }
+}
+
+
+/* =======================================================
+   12. RESPONSIVE EMBEDS (YouTube, Vimeo, etc.)
+   ======================================================= */
+
+.section-article .article-body .wp-block-embed,
+.section-article .article-body .wp-block-embed__wrapper {
+  max-width: 100%;
+}
+
+.section-article .article-body .wp-block-embed__wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  overflow: hidden;
+}
+
+.section-article .article-body .wp-block-embed__wrapper iframe,
+.section-article .article-body iframe {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+}
+
+
+/* =======================================================
+   13. ARCHIVE – "EXPLORE OTHER TOPICS" STRIP
+   ======================================================= */
+
+.section-archive-cats {
+  padding-top: 40px;
+  padding-bottom: 40px;
+  background: var(--bg-soft);
+}
+
+.archive-cats {
+  max-width: var(--container);
+  margin-inline: auto;
+}
+
+.archive-cats-title {
+  font-size: 1.6rem;
+  margin-bottom: 20px;
+}
+
+.archive-cats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.archive-cat-card { }
+
+.archive-cat-name {
+  font-size: 1.1rem;
+  margin: 0 0 4px;
+}
+
+.archive-cat-name a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.archive-cat-name a:hover {
+  text-decoration: underline;
+}
+
+.archive-cat-desc {
+  font-size: 0.95rem;
+  color: var(--text-soft);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.archive-cat-meta {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+
+.archive-cat-btn {
+  white-space: nowrap;
+  padding-inline: 14px;
+}
+
+@media (max-width: 900px) {
+  .archive-cats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .archive-cats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* =======================================================
+   14. BLOG / SINGLE DARK MODE TWEAKS (BLOG-SPECIFIC ONLY)
+   ======================================================= */
+
+@media (prefers-color-scheme: dark) {
+
+  .hero.hero-blog,
+  .hero.hero-archive {
+    background: var(--brand) !important;
+  }
+
+  .section-posts {
+    background: var(--bg-soft);
+  }
+
+  .archive-cat-card {
+    background: #020617 !important;
+    border-radius: 24px;
+    border: 1px solid rgba(148, 163, 184, 0.4) !important;
+    color: var(--inverse);
+  }
+
+  .archive-cat-name a {
+    color: var(--inverse);
+  }
+
+  .archive-cat-desc,
+  .archive-cat-meta {
+    color: var(--text-soft);
+  }
+
+  .article-sidebar {
+    background: transparent;
+  }
+
+  .sidebar-block {
+    background: #020617;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+  }
+
+  .sidebar-block.sidebar-block--related,
+  .sidebar-block.sidebar-block--properties {
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .posts-pagination a,
+  .posts-pagination span {
+    border-color: rgba(148, 163, 184, 0.5) !important;
+    color: #94a3b8 !important;
+    background: transparent !important;
+  }
+
+  .posts-pagination a:hover {
+    border-color: var(--brand) !important;
+    color: #e5e7eb !important;
+  }
+
+  .section-article .article-body .wp-block-table {
+    border-color: rgba(148, 163, 184, 0.5);
+    background: #020617;
+  }
+
+  .section-article .article-body .wp-block-table thead th {
+    background: var(--brand);
+    border-bottom-color: rgba(15, 23, 42, 0.8);
+  }
+
+  .section-article .article-body .wp-block-table tbody tr:nth-child(odd) {
+    background: rgba(15, 23, 42, 0.9);
+  }
+
+  .section-article .article-body .wp-block-table tbody tr:nth-child(even) {
+    background: rgba(15, 23, 42, 0.8);
+  }
+
+  .section-article .article-body .wp-block-table tbody tr:hover {
+    background: rgba(37, 99, 235, 0.3);
+  }
+
+  .section-article .article-body .wp-block-table tbody td {
+    border-top-color: rgba(51, 65, 85, 0.9);
+  }
+}
