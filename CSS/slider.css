@@ -1,0 +1,365 @@
+/**
+ * Pera Property – Slider Utilities
+ * Reusable horizontal card strips for sidebars, features, properties, etc.
+ *
+ * Markup patterns:
+ *
+ * 1) Direct children as cards:
+ *    <div class="cards-slider cards-slider--sidebar cards-slider--snap">
+ *      <article class="slider-card">…</article>
+ *      <article class="slider-card">…</article>
+ *    </div>
+ *
+ * 2) With inner track (e.g. UL):
+ *    <div class="cards-slider cards-slider--sidebar cards-slider--snap">
+ *      <ul class="slider-track">
+ *        <li class="slider-card">…</li>
+ *        <li class="slider-card">…</li>
+ *      </ul>
+ *    </div>
+ */
+
+/* ===========================================
+   1. BASE HORIZONTAL SCROLLER
+   =========================================== */
+
+.cards-slider {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;              /* space for scrollbar */
+  margin: 0;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Optional inner track wrapper (e.g. UL) */
+.cards-slider .slider-track {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Individual cards inside slider */
+.slider-card {
+  flex: 0 0 360px;                  /* base width for generic sliders */
+  max-width: 100%;
+}
+
+/* Ensure slider never overflows its container */
+.cards-slider,
+.cards-slider .slider-track {
+  max-width: 100%;
+}
+
+/* ===========================================
+   2. WIDTH VARIANTS
+   =========================================== */
+
+/* Slightly wider on small/medium viewports */
+@media (min-width: 640px) {
+  .slider-card {
+    flex-basis: 275px;
+  }
+}
+
+/* Wide variant for main-content carousels (e.g. features, properties) */
+@media (min-width: 1024px) {
+  .cards-slider--wide .slider-card,
+  .cards-slider--features .slider-card {
+    flex-basis: 360px;
+  }
+}
+
+/* Compact cards if needed */
+.cards-slider--compact .slider-card {
+  flex-basis: 220px;
+}
+
+/* Sidebar sliders: cards a bit wider so next one peeks less 
+.cards-slider--sidebar .slider-card {
+  flex-basis: 280px;   /* tweak 280–320px as needed */
+}*/
+
+/* ===========================================
+   3. SCROLL SNAP (OPTIONAL)
+   =========================================== */
+
+.cards-slider--snap {
+  scroll-snap-type: x mandatory;
+}
+
+.cards-slider--snap > .slider-card,
+.cards-slider--snap .slider-track > .slider-card {
+  scroll-snap-align: start;
+}
+
+/* ===========================================
+   4. SCROLLBAR TWEAKS
+   =========================================== */
+
+/* WebKit (Chrome / Safari / Edge) */
+.cards-slider::-webkit-scrollbar {
+  height: 6px;
+}
+
+.cards-slider::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cards-slider::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45); /* slate-ish */
+  border-radius: 999px;
+}
+
+.cards-slider::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+/* Firefox */
+.cards-slider {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+}
+
+/* ===========================================
+   5. SIDEBAR-SPECIFIC TWEAKS
+   =========================================== */
+
+/* Sidebar blocks used as slider containers – remove extra chrome */
+.sidebar-block--related,
+.sidebar-block--properties {
+  box-shadow: none !important;
+  border-bottom: none !important;
+}
+
+/* Alias for potential sidebar-only tweaks later */
+.cards-slider--sidebar {
+  /* Intentionally left for future sidebar-specific rules */
+}
+
+/* ============================================
+   GENERIC: slider on mobile, grid ≥ 768px
+   --------------------------------------------
+   Usage: <div class="cards-slider cards-slider--grid-lg">
+============================================ */
+
+/* Base: mobile = slider (your existing behaviour) */
+/* assumes you already have .cards-slider, .slider-track, .slider-card rules */
+
+/* Upgrade to grid from tablet up */
+@media (min-width: 768px) {
+
+  .cards-slider--grid-lg {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)); /* tweak cols as needed */
+    gap: 24px;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+
+  .cards-slider--grid-lg .slider-track {
+    display: contents; /* let cards become grid items directly */
+  }
+
+  .cards-slider--grid-lg .slider-card {
+    flex: none;
+    max-width: 100%;
+    scroll-snap-align: none;
+  }
+}
+
+/* Optional: more breathing room on big screens */
+@media (min-width: 1100px) {
+  .cards-slider--grid-lg {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* =======================================================
+   Property Gallery: 2-row native-aspect horizontal strip
+   ======================================================= */
+
+.property-gallery-strip{
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;               /* gap between the two rows */
+  scroll-snap-type: x proximity;
+  padding-bottom: 2px;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.property-gallery-strip.is-dragging {
+  cursor: grabbing;
+}
+
+/* Prevent native image dragging */
+.property-gallery-strip img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.property-gallery-strip__row{
+  display: flex;
+  gap: 10px;               /* gap between images */
+  width: max-content;      /* ensures horizontal overflow */
+}
+
+.property-gallery-strip__item{
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  overflow: visible;       /* no “frame” crop */
+  scroll-snap-align: start;
+}
+
+.property-gallery-strip__item img{
+  display: block;          /* removes baseline gap */
+  width: auto;
+  height: auto;
+  max-height: 220px;       /* controls row height without forcing frames */
+  max-width: 80vw;         /* prevents huge images on mobile */
+  border-radius:var(--radius-lg);
+}
+
+.property-gallery-strip__row {
+  scroll-snap-align: start;
+}
+
+.property-gallery-strip__row{
+  align-items: flex-start; /* stop stretching items to the tallest height */
+}
+
+/* Shell so nav buttons can overlay */
+.property-gallery-shell{
+  position: relative;
+}
+
+/* Keep strip scrollable but hide scrollbar */
+.property-gallery-strip{
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+
+  /* hide scrollbar */
+  scrollbar-width: none;            /* Firefox */
+}
+.property-gallery-strip::-webkit-scrollbar{
+  display: none;                    /* WebKit */
+}
+
+/* Two rows: prevent item stretching (removes “blank frame” below images) */
+.property-gallery-strip__row{
+  display: flex;
+  gap: 10px;
+  width: max-content;
+  align-items: flex-start;
+}
+
+/* Tiles: no padding “frame”, no forced crop */
+.property-gallery-strip__item{
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+/* Images keep aspect ratio; row height controlled by a single value */
+.property-gallery-strip__item img{
+  display: block;
+  height: var(--gallery-row-h, 220px);
+  width: auto;
+  max-width: 80vw;
+}
+
+/* Nav chevrons */
+.property-gallery-nav{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 44px;
+  height: 44px;
+
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+
+  /* Keep styling minimal; inherits your theme if you’ve got button vars */
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+}
+
+.property-gallery-nav--prev{ left: 8px; }
+.property-gallery-nav--next{ right: 8px; }
+
+
+@media (min-width: 768px) {
+  .property-gallery-strip {
+    overflow-x: visible;
+  }
+}
+
+/* =======================================================
+   Slider card buttons — mobile sizing tweak
+   ======================================================= */
+@media (max-width: 640px) {
+
+  .cards-slider .slider-card .btn {
+    padding: 8px 12px;          /* tighter vertical + horizontal */
+    font-size: 0.875rem;        /* ~14px */
+    line-height: 1.2;
+  }
+
+  .cards-slider .slider-card .hero-actions {
+    gap: 8px;                   /* reduce spacing between buttons */
+  }
+
+}
+
+/* =======================================================
+   Featured district cards — wider on mobile
+   ======================================================= */
+@media (max-width: 640px) {
+
+  .cards-slider--wide .slider-card {
+    flex-basis: 75vw;           /* feels premium, swipe-friendly */
+    max-width: 75vw;
+  }
+
+}
+
+
+
+/* ===========================================
+   6. DARK MODE (inherits from main.css vars)
+   =========================================== */
+
+@media (prefers-color-scheme: dark) {
+  .cards-slider {
+    scrollbar-color: rgba(148, 163, 184, 0.6) transparent;
+  }
+
+  .cards-slider::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.65);
+  }
+
+  .cards-slider::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.9);
+  }
+}
