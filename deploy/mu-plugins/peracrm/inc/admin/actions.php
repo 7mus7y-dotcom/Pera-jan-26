@@ -382,7 +382,7 @@ function peracrm_handle_add_reminder()
 
 function peracrm_handle_mark_reminder_done()
 {
-    if (!is_user_logged_in() || !peracrm_admin_user_can_manage()) {
+    if (!is_user_logged_in()) {
         wp_die('Unauthorized');
     }
 
@@ -394,14 +394,17 @@ function peracrm_handle_mark_reminder_done()
         wp_die('Invalid reminder');
     }
 
+    $actor_id = get_current_user_id();
+    $is_admin = peracrm_admin_user_can_manage();
+    $advisor_id = isset($reminder['advisor_user_id']) ? (int) $reminder['advisor_user_id'] : 0;
+    if (!$is_admin && $advisor_id !== $actor_id) {
+        wp_die('Unauthorized');
+    }
+
     $client_id = (int) $reminder['client_id'];
     $client = peracrm_admin_get_client($client_id);
     if (!$client) {
         wp_die('Invalid client');
-    }
-
-    if (!current_user_can('edit_post', $client_id)) {
-        wp_die('Unauthorized');
     }
 
     $redirect = isset($_POST['peracrm_redirect']) ? esc_url_raw(wp_unslash($_POST['peracrm_redirect'])) : '';
@@ -419,7 +422,7 @@ function peracrm_handle_mark_reminder_done()
 
 function peracrm_handle_update_reminder_status()
 {
-    if (!is_user_logged_in() || !peracrm_admin_user_can_manage()) {
+    if (!is_user_logged_in()) {
         wp_die('Unauthorized');
     }
 
@@ -431,14 +434,17 @@ function peracrm_handle_update_reminder_status()
         wp_die('Invalid reminder');
     }
 
+    $actor_id = get_current_user_id();
+    $is_admin = peracrm_admin_user_can_manage();
+    $advisor_id = isset($reminder['advisor_user_id']) ? (int) $reminder['advisor_user_id'] : 0;
+    if (!$is_admin && $advisor_id !== $actor_id) {
+        wp_die('Unauthorized');
+    }
+
     $client_id = (int) $reminder['client_id'];
     $client = peracrm_admin_get_client($client_id);
     if (!$client) {
         wp_die('Invalid client');
-    }
-
-    if (!current_user_can('edit_post', $client_id)) {
-        wp_die('Unauthorized');
     }
 
     $redirect = isset($_POST['peracrm_redirect']) ? esc_url_raw(wp_unslash($_POST['peracrm_redirect'])) : '';
