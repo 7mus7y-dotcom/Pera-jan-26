@@ -1,0 +1,104 @@
+/* ============================
+   GLOBAL
+   ============================ */
+body.login {
+    background: var(--bg-soft);
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* Center logo & form in a nicer way */
+body.login #login {
+    width: 380px;
+    padding: 40px 30px;
+    background: var(--bg);
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+
+/* Remove WP logo */
+body.login h1 a {
+    display: none !important;
+}
+
+/* ============================
+   FORM FIXES
+   ============================ */
+body.login form {
+    background: var(--bg);
+    border: 1px solid rgba(0,0,0,0.15);
+    box-shadow: none;
+    border-radius: 8px;
+    padding: 20px 25px;
+}
+
+body.login form label {
+    font-weight: 600;
+    color: var(--text);
+}
+
+body.login form input[type="text"],
+body.login form input[type="password"],
+body.login form input[type="email"] {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+/* ============================
+   BUTTONS
+   ============================ */
+body.login form .button-primary {
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
+    color: white !important;
+    width: 100%;
+    padding: 12px 0;
+    font-size: 1rem;
+    border-radius: 6px;
+}
+
+body.login form .button-primary:hover {
+    background: white !important;
+    color: var(--brand) !important;
+}
+
+/* ============================
+   LINKS
+   ============================ */
+body.login #nav a,
+body.login #backtoblog a {
+    color: var(--accent) !important;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+body.login #nav a:hover,
+body.login #backtoblog a:hover {
+    opacity: 0.7;
+}
+
+/* ============================
+   DARK MODE SUPPORT
+   ============================ */
+@media (prefers-color-scheme: dark) {
+    body.login {
+        background: var(--bg);
+    }
+    body.login #login {
+        background: var(--bg-soft);
+        box-shadow: 0 0 0 rgba(0,0,0,0);
+    }
+    body.login form {
+        background: var(--bg-soft);
+        border-color: rgba(255,255,255,0.1);
+    }
+    body.login form label {
+        color: var(--text);
+    }
+    body.login #nav a,
+    body.login #backtoblog a {
+        color: var(--accent);
+    }
+}

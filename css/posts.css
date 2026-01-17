@@ -1,0 +1,165 @@
+/*
+ * Pera Property – Posts (micro)
+ * Purpose: Post card styling (archive grid + sidebar strip) used by parts/post-card.php
+ * Depends on: main.css (tokens + buttons + pills), slider.css (if used in carousel)
+ */
+
+/* Base card */
+.post-card{
+  background:#fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  /* Masonry support (if used inside columns) */
+  break-inside: avoid-column;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  gap:var(--space-xs);
+}
+
+/* Thumb */
+.post-card-thumb{
+  display:block;
+  width:100%;
+  overflow:hidden;
+}
+
+.post-card-thumb img{
+  width:100%;
+  height:auto;
+  display:block;
+  object-fit:cover;
+  object-position:center;
+}
+
+/* Placeholder */
+.post-card-thumb-placeholder{
+  width:100%;
+  aspect-ratio: 16 / 10;
+  background: var(--brand);
+  position: relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:0;
+  overflow:hidden;
+}
+
+.post-card-placeholder-logo{
+  width:70%;
+  max-width:220px;
+  height:auto;
+  opacity:0.95;
+  display:block;
+}
+
+/* If your placeholder SVG needs inversion */
+.post-card-thumb-placeholder img{
+  filter: brightness(0) invert(1);
+}
+
+/* Body */
+.post-card-body{
+  padding: var(--space-xs);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+/* Meta row */
+.post-card-meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+
+.post-card-date{
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+/* Title */
+.post-card-title{
+  margin: 2px 0 4px;
+  line-height: 1.35;
+  font-size: 1.15rem; /* baseline archive */
+}
+
+.post-card-title a{
+  color: inherit;
+  text-decoration:none;
+  font-weight:700;
+}
+
+/* Excerpt */
+.post-card-excerpt{
+  font-size: 0.95rem; /* baseline archive */
+  line-height: 1.45;
+  color: var(--text-soft);
+  margin: 0;
+}
+
+/* Read more (optional) */
+.post-card-readmore{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:auto;
+}
+
+/* Sidebar variant: reduce title + excerpt by 15%
+   Add .post-card--sidebar to the <article> or pass via post_class() */
+.post-card--sidebar .post-card-title{
+  font-size: calc(1.15rem * 0.85);
+}
+
+.post-card--sidebar .post-card-excerpt{
+  font-size: calc(0.95rem * 0.85);
+}
+
+
+/* =======================================================
+   DARK MODE (POST CARD ONLY)
+   ======================================================= */
+@media (prefers-color-scheme: dark){
+
+  .post-card{
+    background: #020617;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.70);
+    border: 1px solid #1f2937; /* add definition vs dark bg */
+  }
+
+  .post-card-title a{
+    color: var(--soft-blue);
+  }
+
+  .post-card-title a:hover{
+    color: #ffffff;
+  }
+
+  .post-card-date{
+    color: #9ca3af;
+  }
+
+  .post-card-excerpt{
+    color: #d1d5db;
+  }
+
+  /* Placeholder stays brand-led but reads clean in dark mode */
+  .post-card-thumb-placeholder{
+    background: #0b1220;
+  }
+
+  /* If you use pills inside post-card meta */
+  .post-card .pill{
+    background: var(--pill-green);
+    color: #ffffff;
+  }
+
+  /* Optional: slightly stronger separation if you ever add inner borders */
+  .post-card-body{
+    border-top: 0;
+  }
+}

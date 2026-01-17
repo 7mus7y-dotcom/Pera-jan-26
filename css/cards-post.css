@@ -1,0 +1,154 @@
+/*
+ * Pera Property – Card Components (micro)
+ * Purpose: Shared card UI used outside blog pages (e.g., property pages)
+ * Depends on: main.css, slider.css
+ *
+ * Contains:
+ * - Related Posts (sidebar strip cards)
+ * - Latest Properties (sidebar strip cards)
+ */
+
+/* =======================================================
+   HARD RESET: ensure strip cards are controlled by this file
+   ======================================================= */
+
+/* If card-shell is ever present on these strip cards, neutralise it */
+.sidebar-related-item.card-shell,
+.sidebar-property-card.card-shell {
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+/* Also ensure no inner unexpected spacing */
+.sidebar-related-item > a.sidebar-related-thumb {
+  display: block;
+  margin: 0 !important;
+}
+
+
+/* =======================================================
+   1. RELATED POSTS (SIDEBAR) – CARD STRIP
+   ======================================================= */
+
+/* NOTE: Layout (horizontal scroll, widths) comes from slider.css:
+   .cards-slider, .cards-slider--sidebar, .slider-track, .slider-card
+*/
+
+.sidebar-related-item {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* images */
+.sidebar-related-thumb {
+  width: 100%;
+  overflow: hidden;
+}
+
+.sidebar-related-thumb img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+/* fallback logo background */
+.sidebar-related-thumb-placeholder {
+  width: 100%;
+  padding-top: 55%;
+  background: var(--brand);
+  background-image: url('../logos-icons/logo-white.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 45%;
+  border-radius: 0; /* card already has radius */
+  border: none;
+}
+
+.sidebar-related-content {
+  padding: 12px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* top row: date + category pill */
+.sidebar-related-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+/* date */
+.sidebar-related-date {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+/* title */
+.sidebar-related-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+/* excerpt */
+.sidebar-related-excerpt {
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  margin: 2px 0 10px;
+  line-height: 1.45;
+}
+
+/* footer: button aligned right */
+.sidebar-related-bottom {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+/* small screens: slightly tighter */
+@media (max-width: 600px) {
+  .sidebar-related-title {
+    font-size: 0.95rem;
+  }
+
+  .sidebar-related-excerpt {
+    font-size: 0.85rem;
+  }
+}
+
+
+
+/* =======================================================
+   3. DARK MODE (CARD COMPONENTS ONLY)
+   ======================================================= */
+
+@media (prefers-color-scheme: dark) {
+
+  /* RELATED POSTS STRIP */
+  .sidebar-related-item {
+    background: #020617;
+    border: 1px solid rgba(51, 65, 85, 0.7);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    /* border-radius stays 10px from base */
+  }
+
+  .sidebar-related-content,
+  .sidebar-related-date,
+  .sidebar-related-excerpt {
+    color: var(--text-soft);
+  }
+
+  .sidebar-related-title {
+    color: var(--inverse);
+  }
+}
