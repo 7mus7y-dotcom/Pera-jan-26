@@ -16,15 +16,15 @@ require_once get_stylesheet_directory() . '/Inc/taxonomy-meta.php';
 /**
  * Published term counts helper (publish-only counts for property CPT)
  */
-<<<<<<< HEAD
+HEAD
 require_once get_stylesheet_directory() . '/inc/published-term-counts.php';
 /**
  * CRM client context helpers.
  */
 require_once get_stylesheet_directory() . '/inc/crm-client-context.php';
-=======
+
 require_once get_stylesheet_directory() . '/Inc/published-term-counts.php';
->>>>>>> origin/main
+origin/main
 
 
 /**
