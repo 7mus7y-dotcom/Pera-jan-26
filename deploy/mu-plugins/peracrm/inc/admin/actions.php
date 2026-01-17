@@ -239,6 +239,10 @@ function peracrm_admin_search_user_for_link($search_term, $client_id = 0)
 
 function peracrm_handle_add_note()
 {
+    if (!is_user_logged_in()) {
+        wp_die('Unauthorized');
+    }
+
     if (!peracrm_admin_user_can_manage()) {
         wp_die('Unauthorized');
     }
@@ -251,12 +255,20 @@ function peracrm_handle_add_note()
         wp_die('Invalid client');
     }
 
+    if (!current_user_can('edit_post', $client_id)) {
+        wp_die('Unauthorized');
+    }
+
     $note_body = isset($_POST['peracrm_note_body']) ? sanitize_textarea_field(wp_unslash($_POST['peracrm_note_body'])) : '';
+    $note_body = trim($note_body);
+    if (strlen($note_body) > 5000) {
+        $note_body = substr($note_body, 0, 5000);
+    }
     if ($note_body === '') {
         peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'note_missing');
     }
 
-    $note_id = peracrm_notes_create($client_id, get_current_user_id(), $note_body, 'internal');
+    $note_id = peracrm_note_add($client_id, get_current_user_id(), $note_body);
     if (!$note_id) {
         peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'note_failed');
     }
