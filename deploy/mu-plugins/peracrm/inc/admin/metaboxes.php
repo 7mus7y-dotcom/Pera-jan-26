@@ -41,6 +41,15 @@ function peracrm_register_metaboxes()
         'side',
         'default'
     );
+
+    add_meta_box(
+        'peracrm_account_link',
+        'Account',
+        'peracrm_render_account_metabox',
+        'crm_client',
+        'side',
+        'default'
+    );
 }
 
 function peracrm_render_notes_metabox($post)
@@ -200,6 +209,49 @@ function peracrm_render_properties_metabox($post)
         }
 
         echo '</div>';
+    }
+
+    echo '</div>';
+}
+
+function peracrm_render_account_metabox($post)
+{
+    $linked_user_id = peracrm_admin_find_linked_user_id($post->ID);
+    $linked_user = $linked_user_id ? get_userdata($linked_user_id) : null;
+
+    echo '<div class="peracrm-metabox">';
+
+    if ($linked_user) {
+        $edit_link = get_edit_user_link($linked_user->ID);
+        echo '<p><strong>Linked user</strong></p>';
+        if ($edit_link) {
+            echo '<p><a href="' . esc_url($edit_link) . '">User #' . esc_html($linked_user->ID) . '</a></p>';
+        } else {
+            echo '<p>User #' . esc_html($linked_user->ID) . '</p>';
+        }
+        echo '<p>Email: ' . esc_html($linked_user->user_email) . '</p>';
+        echo '<p>Username: ' . esc_html($linked_user->user_login) . '</p>';
+    } else {
+        echo '<p><strong>Not linked</strong></p>';
+        echo '<p>No user account is linked to this CRM client.</p>';
+    }
+
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-form">';
+    wp_nonce_field('peracrm_link_user');
+    echo '<input type="hidden" name="action" value="peracrm_link_user" />';
+    echo '<input type="hidden" name="peracrm_client_id" value="' . esc_attr($post->ID) . '" />';
+    echo '<p><label for="peracrm_user_search">Search user (email or username)</label></p>';
+    echo '<p><input type="text" name="peracrm_user_search" id="peracrm_user_search" class="widefat" /></p>';
+    echo '<p><button type="submit" class="button button-primary">Link user</button></p>';
+    echo '</form>';
+
+    if ($linked_user) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-form">';
+        wp_nonce_field('peracrm_unlink_user');
+        echo '<input type="hidden" name="action" value="peracrm_unlink_user" />';
+        echo '<input type="hidden" name="peracrm_client_id" value="' . esc_attr($post->ID) . '" />';
+        echo '<p><button type="submit" class="button">Unlink</button></p>';
+        echo '</form>';
     }
 
     echo '</div>';
