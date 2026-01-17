@@ -55,7 +55,7 @@ function peracrm_upgrade_schema_to($version)
         updated_at DATETIME NULL,
         PRIMARY KEY  (id),
         KEY advisor_due_status (advisor_user_id, status, due_at),
-        KEY client_due (client_id, due_at)
+        KEY client_status_due (client_id, status, due_at)
     ) {$charset_collate};";
 
     $sql_activity = "CREATE TABLE {$activity_table} (

@@ -15,6 +15,7 @@ add_action('add_meta_boxes', 'peracrm_register_metaboxes', 10, 2);
 add_action('admin_post_peracrm_add_note', 'peracrm_handle_add_note');
 add_action('admin_post_peracrm_add_reminder', 'peracrm_handle_add_reminder');
 add_action('admin_post_peracrm_mark_reminder_done', 'peracrm_handle_mark_reminder_done');
+add_action('admin_post_peracrm_update_reminder_status', 'peracrm_handle_update_reminder_status');
 add_action('admin_post_peracrm_link_user', 'peracrm_handle_link_user');
 add_action('admin_post_peracrm_unlink_user', 'peracrm_handle_unlink_user');
 

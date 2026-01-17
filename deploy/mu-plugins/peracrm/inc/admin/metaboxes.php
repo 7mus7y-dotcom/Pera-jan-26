@@ -21,7 +21,7 @@ function peracrm_register_metaboxes($post_type, $post)
 
     add_meta_box(
         'peracrm_reminders',
-        'CRM Reminders',
+        'Reminders',
         'peracrm_render_reminders_metabox',
         'crm_client',
         'normal',
@@ -129,30 +129,91 @@ function peracrm_render_reminders_metabox($post)
         return;
     }
 
-    $reminders = peracrm_admin_get_client_reminders($post->ID, 20);
+    $limit = 20;
+    $offset = isset($_GET['reminders_offset']) ? absint($_GET['reminders_offset']) : 0;
+    $reminders = peracrm_reminders_list_for_client($post->ID, $limit, $offset, null);
+    $total = peracrm_reminders_count_for_client($post->ID, null);
+
+    $advisor_ids = [];
+    foreach ($reminders as $reminder) {
+        if (!empty($reminder['advisor_user_id'])) {
+            $advisor_ids[] = (int) $reminder['advisor_user_id'];
+        }
+    }
+    $advisor_ids = array_values(array_unique($advisor_ids));
+    $advisor_map = [];
+    if (!empty($advisor_ids)) {
+        $advisors = get_users([
+            'include' => $advisor_ids,
+            'fields' => ['ID', 'display_name'],
+        ]);
+        foreach ($advisors as $advisor) {
+            $advisor_map[(int) $advisor->ID] = $advisor->display_name;
+        }
+    }
+
+    $base_url = add_query_arg(
+        [
+            'post' => $post->ID,
+            'action' => 'edit',
+        ],
+        admin_url('post.php')
+    );
 
     echo '<div class="peracrm-metabox">';
 
     if (empty($reminders)) {
-        echo '<p class="peracrm-empty">No pending reminders.</p>';
+        echo '<p class="peracrm-empty">No reminders yet.</p>';
     } else {
         echo '<ul class="peracrm-list">';
         foreach ($reminders as $reminder) {
             $due_at = mysql2date('Y-m-d H:i', $reminder['due_at']);
-            echo '<li>'; 
-            echo '<div class="peracrm-list__meta">Due ' . esc_html($due_at) . '</div>';
-            if (!empty($reminder['note'])) {
-                echo '<div class="peracrm-list__body">' . esc_html($reminder['note']) . '</div>';
+            $status = isset($reminder['status']) ? $reminder['status'] : 'pending';
+            $status_label = ucfirst($status);
+            $advisor_name = isset($advisor_map[(int) $reminder['advisor_user_id']]) ? $advisor_map[(int) $reminder['advisor_user_id']] : 'Advisor';
+            $note_excerpt = $reminder['note'] ? wp_trim_words($reminder['note'], 20, '…') : '';
+
+            echo '<li>';
+            echo '<div class="peracrm-list__meta">Due ' . esc_html($due_at) . ' · <span class="peracrm-status peracrm-status--' . esc_attr($status) . '">' . esc_html($status_label) . '</span> · ' . esc_html($advisor_name) . '</div>';
+            if ($note_excerpt !== '') {
+                echo '<div class="peracrm-list__body">' . esc_html($note_excerpt) . '</div>';
             }
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-inline-form">';
-            wp_nonce_field('peracrm_mark_reminder_done');
-            echo '<input type="hidden" name="action" value="peracrm_mark_reminder_done" />';
-            echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
-            echo '<button type="submit" class="button">Mark done</button>';
-            echo '</form>';
+
+            if ($status === 'pending') {
+                echo '<div class="peracrm-list__actions">';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-inline-form">';
+                wp_nonce_field('peracrm_update_reminder_status');
+                echo '<input type="hidden" name="action" value="peracrm_update_reminder_status" />';
+                echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
+                echo '<input type="hidden" name="peracrm_status" value="done" />';
+                echo '<button type="submit" class="button">Mark done</button>';
+                echo '</form>';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-inline-form">';
+                wp_nonce_field('peracrm_update_reminder_status');
+                echo '<input type="hidden" name="action" value="peracrm_update_reminder_status" />';
+                echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
+                echo '<input type="hidden" name="peracrm_status" value="dismissed" />';
+                echo '<button type="submit" class="button">Dismiss</button>';
+                echo '</form>';
+                echo '</div>';
+            }
+
             echo '</li>';
         }
         echo '</ul>';
+    }
+
+    $pagination = [];
+    if ($offset > 0) {
+        $new_offset = max(0, $offset - $limit);
+        $pagination[] = '<a href="' . esc_url(add_query_arg('reminders_offset', $new_offset, $base_url)) . '">Newer</a>';
+    }
+    if ($total > ($offset + $limit)) {
+        $older_offset = $offset + $limit;
+        $pagination[] = '<a href="' . esc_url(add_query_arg('reminders_offset', $older_offset, $base_url)) . '">Older</a>';
+    }
+    if (!empty($pagination)) {
+        echo '<p class="peracrm-pagination">' . implode(' | ', $pagination) . '</p>';
     }
 
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-form">';
