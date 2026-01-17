@@ -1,0 +1,26 @@
+.peracrm-metabox .peracrm-list {
+    margin: 0 0 1rem;
+    padding-left: 1.2rem;
+}
+
+.peracrm-metabox .peracrm-list__meta {
+    color: #646970;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.peracrm-metabox .peracrm-list__body {
+    margin-bottom: 8px;
+}
+
+.peracrm-metabox .peracrm-empty {
+    color: #646970;
+}
+
+.peracrm-inline-form {
+    margin-top: 6px;
+}
+
+.peracrm-property-group {
+    margin-bottom: 1rem;
+}
