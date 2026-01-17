@@ -1,7 +1,7 @@
 <?php
 /**
  * Enquiry Handlers (Sell / Rent / Property / Citizenship)
- * Location: /Inc/enquiry.php
+ * Location: /inc/enquiry.php
  *
  * Loads only when required (see functions.php loader snippet below).
  */
