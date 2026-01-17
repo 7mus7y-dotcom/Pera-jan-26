@@ -464,56 +464,135 @@ function peracrm_admin_notices()
 function peracrm_admin_add_client_columns($columns)
 {
     $columns['peracrm_account'] = 'Account';
+    $columns['last_activity'] = 'Last activity';
     return $columns;
 }
 
 function peracrm_admin_render_client_columns($column, $post_id)
 {
-    if ('peracrm_account' !== $column) {
-        return;
-    }
+    if ('peracrm_account' === $column) {
+        static $linked_user_cache = [];
+        static $user_cache = [];
 
-    static $linked_user_cache = [];
-    static $user_cache = [];
-
-    if (array_key_exists($post_id, $linked_user_cache)) {
-        $linked_user_id = $linked_user_cache[$post_id];
-    } else {
-        $linked_user_id = peracrm_admin_get_client_linked_user_id($post_id);
-        if ($linked_user_id <= 0) {
-            $users = get_users([
-                'meta_key' => 'crm_client_id',
-                'meta_value' => (int) $post_id,
-                'number' => 1,
-                'fields' => 'ids',
-            ]);
-            $linked_user_id = empty($users) ? 0 : (int) $users[0];
+        if (array_key_exists($post_id, $linked_user_cache)) {
+            $linked_user_id = $linked_user_cache[$post_id];
+        } else {
+            $linked_user_id = peracrm_admin_get_client_linked_user_id($post_id);
+            if ($linked_user_id <= 0) {
+                $users = get_users([
+                    'meta_key' => 'crm_client_id',
+                    'meta_value' => (int) $post_id,
+                    'number' => 1,
+                    'fields' => 'ids',
+                ]);
+                $linked_user_id = empty($users) ? 0 : (int) $users[0];
+            }
+            $linked_user_cache[$post_id] = $linked_user_id;
         }
-        $linked_user_cache[$post_id] = $linked_user_id;
-    }
 
-    if ($linked_user_id <= 0) {
-        echo 'Not linked';
+        if ($linked_user_id <= 0) {
+            echo 'Not linked';
+            return;
+        }
+
+        if (isset($user_cache[$linked_user_id])) {
+            $user = $user_cache[$linked_user_id];
+        } else {
+            $user = get_userdata($linked_user_id);
+            $user_cache[$linked_user_id] = $user;
+        }
+        if (!$user) {
+            echo 'Not linked';
+            return;
+        }
+
+        $edit_link = get_edit_user_link($user->ID);
+        $email = esc_html($user->user_email);
+        if ($edit_link) {
+            echo 'Linked: <a href="' . esc_url($edit_link) . '">' . $email . '</a>';
+            return;
+        }
+
+        echo 'Linked: ' . $email;
         return;
     }
 
-    if (isset($user_cache[$linked_user_id])) {
-        $user = $user_cache[$linked_user_id];
-    } else {
-        $user = get_userdata($linked_user_id);
-        $user_cache[$linked_user_id] = $user;
-    }
-    if (!$user) {
-        echo 'Not linked';
+    if ('last_activity' !== $column) {
         return;
     }
 
-    $edit_link = get_edit_user_link($user->ID);
-    $email = esc_html($user->user_email);
-    if ($edit_link) {
-        echo 'Linked: <a href="' . esc_url($edit_link) . '">' . $email . '</a>';
+    if (!function_exists('peracrm_activity_last')) {
+        echo '&mdash;';
         return;
     }
 
-    echo 'Linked: ' . $email;
+    $activity = peracrm_activity_last($post_id);
+    if (!$activity) {
+        echo '&mdash;';
+        return;
+    }
+
+    $event_type = isset($activity['event_type']) ? $activity['event_type'] : '';
+    $label = peracrm_admin_activity_label($event_type);
+    $created_at = isset($activity['created_at']) ? $activity['created_at'] : '';
+
+    $bucket = function_exists('peracrm_activity_engagement_bucket')
+        ? peracrm_activity_engagement_bucket($created_at)
+        : 'none';
+    $badge = peracrm_admin_activity_badge($bucket);
+
+    $timestamp = $created_at ? strtotime($created_at) : 0;
+    $relative = '';
+    $title = '';
+    if ($timestamp) {
+        $relative = human_time_diff($timestamp, current_time('timestamp')) . ' ago';
+        $title = wp_date(
+            get_option('date_format') . ' ' . get_option('time_format'),
+            $timestamp
+        );
+    }
+
+    echo $badge . esc_html($label);
+    if ($relative) {
+        echo ' <span title="' . esc_attr($title) . '">' . esc_html($relative) . '</span>';
+    }
+}
+
+function peracrm_admin_activity_label($event_type)
+{
+    $event_type = sanitize_key($event_type);
+    $labels = [
+        'view_property' => 'Viewed property',
+        'login' => 'Logged in',
+        'account_visit' => 'Visited account',
+        'enquiry' => 'Submitted enquiry',
+    ];
+
+    if (isset($labels[$event_type])) {
+        return $labels[$event_type];
+    }
+
+    if ($event_type === '') {
+        return 'Activity';
+    }
+
+    return ucfirst($event_type);
+}
+
+function peracrm_admin_activity_badge($bucket)
+{
+    $bucket = sanitize_key($bucket);
+    $colors = [
+        'hot' => '#46b450',
+        'warm' => '#dba617',
+        'cold' => '#99a1a7',
+        'none' => '#ccd0d4',
+    ];
+
+    $color = isset($colors[$bucket]) ? $colors[$bucket] : $colors['none'];
+
+    return sprintf(
+        '<span aria-hidden="true" style="display:inline-block;width:8px;height:8px;border-radius:50%%;background:%1$s;margin-right:6px;vertical-align:middle;"></span>',
+        esc_attr($color)
+    );
 }

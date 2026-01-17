@@ -94,6 +94,80 @@ function peracrm_activity_log($client_id, $event_type, array $payload = [])
     return (bool) peracrm_activity_insert($client_id, $event_type, $payload);
 }
 
+function peracrm_activity_last($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return null;
+    }
+
+    static $cache = [];
+    if (array_key_exists($client_id, $cache)) {
+        return $cache[$client_id];
+    }
+
+    if (!function_exists('peracrm_activity_table_exists') || !peracrm_activity_table_exists()) {
+        $cache[$client_id] = null;
+        return null;
+    }
+
+    global $wpdb;
+
+    $table = peracrm_table('crm_activity');
+
+    $query = $wpdb->prepare(
+        "SELECT event_type, event_payload, created_at
+         FROM {$table}
+         WHERE client_id = %d
+         ORDER BY created_at DESC
+         LIMIT 1",
+        $client_id
+    );
+
+    $row = $wpdb->get_row($query, ARRAY_A);
+    if (!$row) {
+        $cache[$client_id] = null;
+        return null;
+    }
+
+    $object_id = 0;
+    $payload = peracrm_json_decode($row['event_payload']);
+    if (is_array($payload) && isset($payload['property_id'])) {
+        $object_id = absint($payload['property_id']);
+    }
+
+    $cache[$client_id] = [
+        'event_type' => $row['event_type'],
+        'object_id' => $object_id,
+        'created_at' => $row['created_at'],
+    ];
+
+    return $cache[$client_id];
+}
+
+function peracrm_activity_engagement_bucket($last_activity_at)
+{
+    if (!$last_activity_at) {
+        return 'none';
+    }
+
+    $timestamp = strtotime($last_activity_at);
+    if (!$timestamp) {
+        return 'none';
+    }
+
+    $age_seconds = current_time('timestamp') - $timestamp;
+    if ($age_seconds <= DAY_IN_SECONDS * 7) {
+        return 'hot';
+    }
+
+    if ($age_seconds <= DAY_IN_SECONDS * 30) {
+        return 'warm';
+    }
+
+    return 'cold';
+}
+
 function peracrm_activity_list($client_id, $limit = 50, $offset = 0, $event_type = null)
 {
     $client_id = (int) $client_id;
