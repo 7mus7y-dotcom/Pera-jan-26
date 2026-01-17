@@ -23,3 +23,7 @@ add_action('admin_enqueue_scripts', 'peracrm_admin_enqueue_assets');
 
 add_filter('manage_crm_client_posts_columns', 'peracrm_admin_add_client_columns');
 add_action('manage_crm_client_posts_custom_column', 'peracrm_admin_render_client_columns', 10, 2);
+add_filter('manage_edit-crm_client_sortable_columns', 'peracrm_admin_client_sortable_columns');
+add_action('restrict_manage_posts', 'peracrm_admin_client_filters');
+add_action('pre_get_posts', 'peracrm_admin_client_list_query');
+add_filter('posts_clauses', 'peracrm_admin_client_list_clauses', 10, 2);

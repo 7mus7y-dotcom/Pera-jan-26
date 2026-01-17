@@ -468,6 +468,164 @@ function peracrm_admin_add_client_columns($columns)
     return $columns;
 }
 
+function peracrm_admin_client_sortable_columns($columns)
+{
+    $columns['last_activity'] = 'last_activity';
+    return $columns;
+}
+
+function peracrm_admin_client_filters()
+{
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen || 'edit-crm_client' !== $screen->id) {
+        return;
+    }
+
+    $selected = peracrm_admin_get_engagement_filter();
+    $options = [
+        '' => 'All',
+        'hot' => 'Hot',
+        'warm' => 'Warm',
+        'cold' => 'Cold',
+        'none' => 'None',
+    ];
+
+    echo '<label for="peracrm-engagement-filter" class="screen-reader-text">Engagement</label>';
+    echo '<select name="engagement" id="peracrm-engagement-filter">';
+    foreach ($options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($selected, $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select>';
+}
+
+function peracrm_admin_client_list_query($query)
+{
+    $context = peracrm_admin_client_list_context($query);
+    if (!$context['is_client_list']) {
+        return;
+    }
+
+    if (!$context['has_activity_table'] && 'none' === $context['engagement']) {
+        $query->set('post__in', [0]);
+    }
+}
+
+function peracrm_admin_client_list_clauses($clauses, $query)
+{
+    $context = peracrm_admin_client_list_context($query);
+    if (!$context['is_client_list']) {
+        return $clauses;
+    }
+
+    if (!$context['has_activity_table']) {
+        return $clauses;
+    }
+
+    if ('last_activity' !== $context['orderby'] && $context['engagement'] === '') {
+        return $clauses;
+    }
+
+    global $wpdb;
+
+    $activity_table = peracrm_table('crm_activity');
+    $activity_alias = 'peracrm_activity';
+
+    if (false === strpos($clauses['join'], " {$activity_table} ")) {
+        $clauses['join'] .= " LEFT JOIN {$activity_table} AS {$activity_alias} ON {$wpdb->posts}.ID = {$activity_alias}.client_id";
+    }
+
+    if (false === strpos($clauses['fields'], 'peracrm_last_activity_at')) {
+        $clauses['fields'] .= ", MAX({$activity_alias}.created_at) AS peracrm_last_activity_at";
+    }
+
+    if (empty($clauses['groupby'])) {
+        $clauses['groupby'] = "{$wpdb->posts}.ID";
+    } elseif (false === strpos($clauses['groupby'], "{$wpdb->posts}.ID")) {
+        $clauses['groupby'] .= ", {$wpdb->posts}.ID";
+    }
+
+    $having_conditions = [];
+    if ($context['engagement'] !== '') {
+        $now = current_time('timestamp');
+        $seven_days = date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 7);
+        $thirty_days = date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 30);
+
+        if ('hot' === $context['engagement']) {
+            $having_conditions[] = $wpdb->prepare('peracrm_last_activity_at >= %s', $seven_days);
+        } elseif ('warm' === $context['engagement']) {
+            $having_conditions[] = $wpdb->prepare('peracrm_last_activity_at < %s', $seven_days);
+            $having_conditions[] = $wpdb->prepare('peracrm_last_activity_at >= %s', $thirty_days);
+        } elseif ('cold' === $context['engagement']) {
+            $having_conditions[] = $wpdb->prepare('peracrm_last_activity_at < %s', $thirty_days);
+        } elseif ('none' === $context['engagement']) {
+            $having_conditions[] = 'peracrm_last_activity_at IS NULL';
+        }
+    }
+
+    if (!empty($having_conditions)) {
+        $existing_having = trim($clauses['having']);
+        $append_having = implode(' AND ', $having_conditions);
+        $clauses['having'] = $existing_having === '' ? $append_having : "{$existing_having} AND {$append_having}";
+    }
+
+    if ('last_activity' === $context['orderby']) {
+        $clauses['orderby'] = 'peracrm_last_activity_at IS NULL, peracrm_last_activity_at DESC';
+    }
+
+    return $clauses;
+}
+
+function peracrm_admin_client_list_context($query)
+{
+    static $cache = [];
+    $key = is_object($query) ? spl_object_hash($query) : 'default';
+
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+
+    $is_client_list = false;
+    if ($query instanceof WP_Query && is_admin() && $query->is_main_query()) {
+        global $pagenow;
+        $post_type = $query->get('post_type');
+        $is_client_list = ('edit.php' === $pagenow && 'crm_client' === $post_type);
+    }
+
+    $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    $orderby = $query instanceof WP_Query ? sanitize_key($query->get('orderby')) : '';
+
+    $cache[$key] = [
+        'is_client_list' => $is_client_list,
+        'has_activity_table' => $has_activity_table,
+        'orderby' => $orderby,
+        'engagement' => peracrm_admin_get_engagement_filter(),
+    ];
+
+    return $cache[$key];
+}
+
+function peracrm_admin_get_engagement_filter()
+{
+    static $filter = null;
+    if (null !== $filter) {
+        return $filter;
+    }
+
+    $value = isset($_GET['engagement']) ? sanitize_key(wp_unslash($_GET['engagement'])) : '';
+    $allowed = ['hot', 'warm', 'cold', 'none'];
+    if (!in_array($value, $allowed, true)) {
+        $value = '';
+    }
+
+    $filter = $value;
+    return $filter;
+}
+
 function peracrm_admin_render_client_columns($column, $post_id)
 {
     if ('peracrm_account' === $column) {
