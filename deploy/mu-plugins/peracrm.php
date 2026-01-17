@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$peracrm_entrypoint = __DIR__ . '/peracrm/peracrm.php';
+$peracrm_entrypoint = WP_CONTENT_DIR . '/mu-plugins/peracrm/peracrm.php';
 if (file_exists($peracrm_entrypoint)) {
     require_once $peracrm_entrypoint;
 }
