@@ -10,20 +10,15 @@ function peracrm_activity_insert($client_id, $event_type, $payload = null)
 
     $table = peracrm_table('crm_activity');
 
-    $result = $wpdb->insert(
-        $table,
-        [
-            'client_id' => (int) $client_id,
-            'event_type' => sanitize_key($event_type),
-            'event_payload' => $payload !== null ? peracrm_json_encode($payload) : null,
-            'created_at' => peracrm_now_mysql(),
-        ],
-        [
-            '%d',
-            '%s',
-            '%s',
-            '%s',
-        ]
+    $result = $wpdb->query(
+        $wpdb->prepare(
+            "INSERT INTO {$table} (client_id, event_type, event_payload, created_at)
+             VALUES (%d, %s, %s, %s)",
+            (int) $client_id,
+            sanitize_key($event_type),
+            $payload !== null ? peracrm_json_encode($payload) : null,
+            peracrm_now_mysql()
+        )
     );
 
     if (false === $result) {
