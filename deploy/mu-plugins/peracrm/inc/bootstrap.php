@@ -17,19 +17,21 @@ require_once PERACRM_INC . '/repositories/client_property.php';
 require_once PERACRM_INC . '/services/client_service.php';
 require_once PERACRM_INC . '/services/activity_service.php';
 
-$admin_dir = PERACRM_INC . '/admin';
-$admin_files = [
-    'admin.php',
-    'metaboxes.php',
-    'pages.php',
-    'actions.php',
-    'assets.php',
-];
+if (is_admin()) {
+    $admin_dir = PERACRM_INC . '/admin';
+    $admin_files = [
+        'admin.php',
+        'metaboxes.php',
+        'pages.php',
+        'actions.php',
+        'assets.php',
+    ];
 
-foreach ($admin_files as $admin_file) {
-    $admin_path = $admin_dir . '/' . $admin_file;
-    if (file_exists($admin_path)) {
-        require_once $admin_path;
+    foreach ($admin_files as $admin_file) {
+        $admin_path = $admin_dir . '/' . $admin_file;
+        if (file_exists($admin_path)) {
+            require_once $admin_path;
+        }
     }
 }
 
