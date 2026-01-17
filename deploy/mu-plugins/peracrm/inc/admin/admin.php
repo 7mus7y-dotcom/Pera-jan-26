@@ -10,7 +10,7 @@ require_once PERACRM_INC . '/admin/pages.php';
 require_once PERACRM_INC . '/admin/assets.php';
 
 add_action('admin_menu', 'peracrm_register_admin_menu');
-add_action('add_meta_boxes', 'peracrm_register_metaboxes');
+add_action('add_meta_boxes', 'peracrm_register_metaboxes', 10, 2);
 
 add_action('admin_post_peracrm_add_note', 'peracrm_handle_add_note');
 add_action('admin_post_peracrm_add_reminder', 'peracrm_handle_add_reminder');
