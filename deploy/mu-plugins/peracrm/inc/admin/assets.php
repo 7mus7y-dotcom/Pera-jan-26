@@ -24,10 +24,13 @@ function peracrm_admin_enqueue_assets($hook)
         return;
     }
 
+    $admin_css_path = PERACRM_PATH . '/assets/admin.css';
+    $version = defined('PERACRM_VERSION') ? PERACRM_VERSION : (file_exists($admin_css_path) ? filemtime($admin_css_path) : null);
+
     wp_enqueue_style(
         'peracrm-admin',
-        plugins_url('assets/admin.css', PERACRM_PATH . '/peracrm.php'),
+        plugins_url('peracrm/assets/admin.css', PERACRM_MAIN_FILE),
         [],
-        PERACRM_VERSION
+        $version
     );
 }
