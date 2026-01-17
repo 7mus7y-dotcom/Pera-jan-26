@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
   exit;
 }
 
+require_once get_stylesheet_directory() . '/inc/crm-integration.php';
+
 /**
  * Master handler for both Citizenship and Sell/Rent/Property enquiries.
  */
@@ -66,6 +68,26 @@ function pera_handle_citizenship_enquiry() {
     $property_id    = isset( $_POST['sr_property_id'] )    ? absint( $_POST['sr_property_id'] ) : 0;
     $property_title = isset( $_POST['sr_property_title'] ) ? sanitize_text_field( wp_unslash( $_POST['sr_property_title'] ) ) : '';
     $property_url   = isset( $_POST['sr_property_url'] )   ? esc_url_raw( wp_unslash( $_POST['sr_property_url'] ) ) : '';
+
+    $enquiry_type = 'sell';
+    if ( $form_context === 'property' ) {
+      $enquiry_type = 'property';
+    } elseif ( in_array( $form_context, array( 'rent-page', 'rent' ), true ) || in_array( $intent, array( 'rent', 'short-term' ), true ) ) {
+      $enquiry_type = 'rent';
+    }
+
+    $name_parts = pera_crm_split_name( $name );
+
+    pera_crm_log_enquiry(
+      array(
+        'email'        => $email,
+        'first_name'   => $name_parts['first_name'],
+        'last_name'    => $name_parts['last_name'],
+        'phone'        => $phone,
+        'enquiry_type' => $enquiry_type,
+        'property_id'  => $property_id,
+      )
+    );
 
     $to = 'info@peraproperty.com';
 
@@ -181,6 +203,18 @@ function pera_handle_citizenship_enquiry() {
     if ( ! empty( $_POST['contact_method'] ) && is_array( $_POST['contact_method'] ) ) {
       $contact_methods = array_map( 'sanitize_text_field', wp_unslash( $_POST['contact_method'] ) );
     }
+
+    $name_parts = pera_crm_split_name( $name );
+
+    pera_crm_log_enquiry(
+      array(
+        'email'        => $email,
+        'first_name'   => $name_parts['first_name'],
+        'last_name'    => $name_parts['last_name'],
+        'phone'        => $phone,
+        'enquiry_type' => 'citizenship',
+      )
+    );
 
     $to      = 'info@peraproperty.com';
     $subject = 'New Citizenship Enquiry from ' . $name;
