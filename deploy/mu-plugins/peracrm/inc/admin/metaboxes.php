@@ -12,7 +12,7 @@ function peracrm_register_metaboxes($post_type, $post)
 
     add_meta_box(
         'peracrm_notes',
-        'CRM Notes',
+        'Advisor Notes',
         'peracrm_render_notes_metabox',
         'crm_client',
         'normal',
@@ -65,7 +65,18 @@ function peracrm_render_notes_metabox($post)
         return;
     }
 
-    $notes = peracrm_notes_list($post->ID, 20);
+    $limit = 20;
+    $offset = isset($_GET['notes_offset']) ? absint($_GET['notes_offset']) : 0;
+    $notes = peracrm_notes_list($post->ID, $limit, $offset);
+    $total = peracrm_notes_count($post->ID);
+
+    $base_url = add_query_arg(
+        [
+            'post' => $post->ID,
+            'action' => 'edit',
+        ],
+        admin_url('post.php')
+    );
 
     echo '<div class="peracrm-metabox">';
 
@@ -84,6 +95,19 @@ function peracrm_render_notes_metabox($post)
             );
         }
         echo '</ul>';
+    }
+
+    $pagination = [];
+    if ($offset > 0) {
+        $new_offset = max(0, $offset - $limit);
+        $pagination[] = '<a href="' . esc_url(add_query_arg('notes_offset', $new_offset, $base_url)) . '">Newer</a>';
+    }
+    if ($total > ($offset + $limit)) {
+        $older_offset = $offset + $limit;
+        $pagination[] = '<a href="' . esc_url(add_query_arg('notes_offset', $older_offset, $base_url)) . '">Older</a>';
+    }
+    if (!empty($pagination)) {
+        echo '<p class="peracrm-pagination">' . implode(' | ', $pagination) . '</p>';
     }
 
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-form">';
