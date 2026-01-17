@@ -12,19 +12,15 @@ error_log('ACTIVE CHILD THEME FUNCTIONS LOADED');
  * Load taxonomy term meta (needed for term excerpt + featured image)
  * Safe to load globally.
  */
-require_once get_stylesheet_directory() . '/Inc/taxonomy-meta.php';
+require_once get_stylesheet_directory() . '/inc/taxonomy-meta.php';
 /**
  * Published term counts helper (publish-only counts for property CPT)
  */
-HEAD
 require_once get_stylesheet_directory() . '/inc/published-term-counts.php';
 /**
  * CRM client context helpers.
  */
 require_once get_stylesheet_directory() . '/inc/crm-client-context.php';
-
-require_once get_stylesheet_directory() . '/Inc/published-term-counts.php';
-origin/main
 
 
 /**
@@ -34,7 +30,7 @@ add_action( 'wp', function () {
 
   if ( is_admin() ) return;
 
-  $inc = trailingslashit( get_stylesheet_directory() ) . 'Inc/';
+  $inc = trailingslashit( get_stylesheet_directory() ) . 'inc/';
 
   // 1) Single Property
   if ( is_singular( 'property' ) ) {
@@ -147,8 +143,8 @@ add_action( 'wp_enqueue_scripts', function () {
   // main.css everywhere
   wp_enqueue_style(
     'pera-main-css',
-    get_stylesheet_directory_uri() . '/CSS/main.css',
-    filemtime( get_stylesheet_directory() . '/CSS/main.css' )
+    get_stylesheet_directory_uri() . '/css/main.css',
+    filemtime( get_stylesheet_directory() . '/css/main.css' )
   );
 
   // main.js everywhere
@@ -202,9 +198,9 @@ add_action( 'wp_enqueue_scripts', function () {
   if ( $needs_slider ) {
     wp_enqueue_style(
       'pera-slider-css',
-      get_stylesheet_directory_uri() . '/CSS/slider.css',
+      get_stylesheet_directory_uri() . '/css/slider.css',
       array( 'pera-main-css' ),
-      filemtime( get_stylesheet_directory() . '/CSS/slider.css' )
+      filemtime( get_stylesheet_directory() . '/css/slider.css' )
     );
   }
 
@@ -216,9 +212,9 @@ add_action( 'wp_enqueue_scripts', function () {
   if ( $is_property_archive || $is_single_property || $is_home ) {
     wp_enqueue_style(
       'pera-property-css',
-      get_stylesheet_directory_uri() . '/CSS/property.css',
+      get_stylesheet_directory_uri() . '/css/property.css',
       array( 'pera-main-css' ),
-      filemtime( get_stylesheet_directory() . '/CSS/property.css' )
+      filemtime( get_stylesheet_directory() . '/css/property.css' )
     );
   }
 
@@ -236,9 +232,9 @@ add_action( 'wp_enqueue_scripts', function () {
 
     wp_enqueue_style(
       'pera-property-card',
-      get_stylesheet_directory_uri() . '/CSS/property-card.css',
+      get_stylesheet_directory_uri() . '/css/property-card.css',
       $deps,
-      filemtime( get_stylesheet_directory() . '/CSS/property-card.css' )
+      filemtime( get_stylesheet_directory() . '/css/property-card.css' )
     );
   }
 
@@ -256,9 +252,9 @@ add_action( 'wp_enqueue_scripts', function () {
 
     wp_enqueue_style(
       'pera-blog-css',
-      get_stylesheet_directory_uri() . '/CSS/blog.css',
+      get_stylesheet_directory_uri() . '/css/blog.css',
       $deps,
-      filemtime( get_stylesheet_directory() . '/CSS/blog.css' )
+      filemtime( get_stylesheet_directory() . '/css/blog.css' )
     );
   }
 
@@ -276,9 +272,9 @@ add_action( 'wp_enqueue_scripts', function () {
 
     wp_enqueue_style(
       'pera-posts-css',
-      get_stylesheet_directory_uri() . '/CSS/posts.css',
+      get_stylesheet_directory_uri() . '/css/posts.css',
       $deps,
-      filemtime( get_stylesheet_directory() . '/CSS/posts.css' )
+      filemtime( get_stylesheet_directory() . '/css/posts.css' )
     );
   }
 
@@ -320,14 +316,14 @@ add_action('wp_enqueue_scripts', function () {
     // Page-specific CSS (main.css loads globally already)
     wp_enqueue_style(
       'pera-property',
-      get_stylesheet_directory_uri() . '/CSS/property.css',
+      get_stylesheet_directory_uri() . '/css/property.css',
       ['pera-main-css'], // change to your real main.css handle if different
       null
     );
 
     wp_enqueue_style(
       'pera-property-card',
-      get_stylesheet_directory_uri() . '/CSS/property-card.css',
+      get_stylesheet_directory_uri() . '/css/property-card.css',
       ['pera-property'],
       null
     );
@@ -471,7 +467,7 @@ add_action( 'wp_head', function () {
    ======================================================= */
 add_action( 'login_enqueue_scripts', function () {
 
-  $css_rel  = '/CSS/login.css';
+  $css_rel  = '/css/login.css';
   $css_path = get_stylesheet_directory() . $css_rel;
   $css_url  = get_stylesheet_directory_uri() . $css_rel;
 
@@ -481,7 +477,7 @@ add_action( 'login_enqueue_scripts', function () {
   wp_enqueue_style( 'pera-login', $css_url, array(), $ver );
 
   // Optional: load your theme font if your login.css relies on it
-  // wp_enqueue_style( 'pera-fonts', get_stylesheet_directory_uri() . '/CSS/fonts.css', array(), $ver );
+  // wp_enqueue_style( 'pera-fonts', get_stylesheet_directory_uri() . '/css/fonts.css', array(), $ver );
 }, 20 );
 
 add_filter( 'login_headerurl', function () {
@@ -1078,12 +1074,12 @@ add_action( 'trashed_post', 'pera_flush_price_range_cache' );
  * V2 Search / Index System (isolated, non-breaking)
  * -------------------------------------------------
  */
-require_once get_stylesheet_directory() . '/Inc/v2-units-index.php';
-require_once get_stylesheet_directory() . '/Inc/ajax-property-archive.php';
+require_once get_stylesheet_directory() . '/inc/v2-units-index.php';
+require_once get_stylesheet_directory() . '/inc/ajax-property-archive.php';
 
 /**
  * functions.php (or your existing loader section)
- * Conditionally load /Inc/enquiry.php only on:
+ * Conditionally load /inc/enquiry.php only on:
  * - page-citizenship.php
  * - page-rent-with-pera.php
  * - page-sell-with-pera.php
@@ -1097,7 +1093,7 @@ add_action( 'init', function () {
 
   // Always load if this is a relevant POST (so submissions work even if template checks fail)
   if ( $_SERVER['REQUEST_METHOD'] === 'POST' && ( isset( $_POST['sr_action'] ) || isset( $_POST['pera_citizenship_action'] ) ) ) {
-    require_once get_stylesheet_directory() . '/Inc/enquiry.php';
+    require_once get_stylesheet_directory() . '/inc/enquiry.php';
     return;
   }
 
@@ -1108,7 +1104,7 @@ add_action( 'init', function () {
 
   // Single property
   if ( is_singular( 'property' ) ) {
-    require_once get_stylesheet_directory() . '/Inc/enquiry.php';
+    require_once get_stylesheet_directory() . '/inc/enquiry.php';
     return;
   }
 
@@ -1118,13 +1114,13 @@ add_action( 'init', function () {
     is_page_template( 'page-rent-with-pera.php' ) ||
     is_page_template( 'page-sell-with-pera.php' )
   ) {
-    require_once get_stylesheet_directory() . '/Inc/enquiry.php';
+    require_once get_stylesheet_directory() . '/inc/enquiry.php';
     return;
   }
 
   // Safety fallback: if your pages are not using those exact filenames, load by slug as well
   if ( is_page( array( 'citizenship-by-investment', 'rent-with-pera', 'sell-with-pera' ) ) ) {
-    require_once get_stylesheet_directory() . '/Inc/enquiry.php';
+    require_once get_stylesheet_directory() . '/inc/enquiry.php';
     return;
   }
 
