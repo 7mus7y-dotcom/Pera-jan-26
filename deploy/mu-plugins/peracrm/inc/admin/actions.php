@@ -86,6 +86,102 @@ function peracrm_admin_get_client_property_count($client_id, $relation_type)
     return (int) $wpdb->get_var($query);
 }
 
+function peracrm_admin_client_table_has_linked_user_column()
+{
+    static $has_column = null;
+
+    if (null !== $has_column) {
+        return $has_column;
+    }
+
+    global $wpdb;
+
+    $table = peracrm_table('crm_client');
+    $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+    if (!$table_exists) {
+        $has_column = false;
+        return $has_column;
+    }
+
+    $column = $wpdb->get_col("SHOW COLUMNS FROM {$table} LIKE 'linked_user_id'");
+    $has_column = !empty($column);
+
+    return $has_column;
+}
+
+function peracrm_admin_get_client_linked_user_id($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    if (peracrm_admin_client_table_has_linked_user_column()) {
+        global $wpdb;
+        $table = peracrm_table('crm_client');
+        $linked_user_id = (int) $wpdb->get_var(
+            $wpdb->prepare("SELECT linked_user_id FROM {$table} WHERE id = %d", $client_id)
+        );
+        if ($linked_user_id > 0) {
+            return $linked_user_id;
+        }
+    }
+
+    return (int) get_post_meta($client_id, 'linked_user_id', true);
+}
+
+function peracrm_admin_find_linked_user_id($client_id)
+{
+    $linked_user_id = peracrm_admin_get_client_linked_user_id($client_id);
+    if ($linked_user_id > 0) {
+        return $linked_user_id;
+    }
+
+    $users = get_users([
+        'meta_key' => 'crm_client_id',
+        'meta_value' => (int) $client_id,
+        'number' => 1,
+        'fields' => 'ids',
+    ]);
+
+    if (empty($users)) {
+        return 0;
+    }
+
+    return (int) $users[0];
+}
+
+function peracrm_admin_update_client_linked_user_id($client_id, $user_id)
+{
+    $client_id = (int) $client_id;
+    $user_id = (int) $user_id;
+    if ($client_id <= 0) {
+        return false;
+    }
+
+    if (peracrm_admin_client_table_has_linked_user_column()) {
+        global $wpdb;
+        $table = peracrm_table('crm_client');
+        $result = $wpdb->update(
+            $table,
+            ['linked_user_id' => $user_id > 0 ? $user_id : null],
+            ['id' => $client_id],
+            ['%d'],
+            ['%d']
+        );
+        if (false !== $result) {
+            return true;
+        }
+    }
+
+    if ($user_id > 0) {
+        return (bool) update_post_meta($client_id, 'linked_user_id', $user_id);
+    }
+
+    delete_post_meta($client_id, 'linked_user_id');
+    return true;
+}
+
 function peracrm_admin_parse_datetime($raw_datetime)
 {
     $raw_datetime = sanitize_text_field($raw_datetime);
@@ -118,6 +214,20 @@ function peracrm_admin_redirect_with_notice($url, $notice)
     exit;
 }
 
+function peracrm_admin_search_user_for_link($search_term)
+{
+    $search_term = sanitize_text_field($search_term);
+    if ($search_term === '') {
+        return [];
+    }
+
+    return get_users([
+        'search' => '*' . $search_term . '*',
+        'search_columns' => ['user_login', 'user_email', 'display_name'],
+        'number' => 5,
+    ]);
+}
+
 function peracrm_handle_add_note()
 {
     if (!peracrm_admin_user_can_manage()) {
@@ -143,6 +253,97 @@ function peracrm_handle_add_note()
     }
 
     peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'note_added');
+}
+
+function peracrm_handle_link_user()
+{
+    $client_id = isset($_POST['peracrm_client_id']) ? (int) $_POST['peracrm_client_id'] : 0;
+    $client = peracrm_admin_get_client($client_id);
+    if (!$client) {
+        wp_die('Invalid client');
+    }
+
+    if (!current_user_can('edit_post', $client_id)) {
+        wp_die('Unauthorized');
+    }
+
+    check_admin_referer('peracrm_link_user');
+
+    $search_term = isset($_POST['peracrm_user_search']) ? wp_unslash($_POST['peracrm_user_search']) : '';
+    $users = peracrm_admin_search_user_for_link($search_term);
+    if (empty($users)) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'user_missing');
+    }
+
+    if (count($users) > 1) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'user_ambiguous');
+    }
+
+    $user = $users[0];
+    $user_id = (int) $user->ID;
+    if ($user_id <= 0) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'user_missing');
+    }
+
+    $existing_client_id = (int) get_user_meta($user_id, 'crm_client_id', true);
+    if ($existing_client_id > 0 && $existing_client_id !== $client_id) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'user_already_linked');
+    }
+
+    $existing_user_id = peracrm_admin_find_linked_user_id($client_id);
+    if ($existing_user_id > 0 && $existing_user_id !== $user_id) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'client_already_linked');
+    }
+
+    update_user_meta($user_id, 'crm_client_id', $client_id);
+    $linked = peracrm_admin_update_client_linked_user_id($client_id, $user_id);
+
+    if (!$linked) {
+        if ($existing_client_id > 0) {
+            update_user_meta($user_id, 'crm_client_id', $existing_client_id);
+        } else {
+            delete_user_meta($user_id, 'crm_client_id');
+        }
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'link_failed');
+    }
+
+    peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'link_success');
+}
+
+function peracrm_handle_unlink_user()
+{
+    $client_id = isset($_POST['peracrm_client_id']) ? (int) $_POST['peracrm_client_id'] : 0;
+    $client = peracrm_admin_get_client($client_id);
+    if (!$client) {
+        wp_die('Invalid client');
+    }
+
+    if (!current_user_can('edit_post', $client_id)) {
+        wp_die('Unauthorized');
+    }
+
+    check_admin_referer('peracrm_unlink_user');
+
+    $linked_user_id = peracrm_admin_find_linked_user_id($client_id);
+    if ($linked_user_id <= 0) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'unlink_missing');
+    }
+
+    $updated = peracrm_admin_update_client_linked_user_id($client_id, 0);
+    if (!$updated) {
+        peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'unlink_failed');
+    }
+
+    $current_client_id = (int) get_user_meta($linked_user_id, 'crm_client_id', true);
+    if ($current_client_id === $client_id) {
+        $deleted = delete_user_meta($linked_user_id, 'crm_client_id');
+        if (!$deleted) {
+            peracrm_admin_update_client_linked_user_id($client_id, $linked_user_id);
+            peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'unlink_failed');
+        }
+    }
+
+    peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'unlink_success');
 }
 
 function peracrm_handle_add_reminder()
@@ -227,6 +428,15 @@ function peracrm_admin_notices()
         'reminder_missing' => ['error', 'Please provide a due date for the reminder.'],
         'reminder_failed' => ['error', 'Unable to update CRM reminder.'],
         'reminder_done' => ['success', 'CRM reminder marked as done.'],
+        'link_success' => ['success', 'User linked to CRM client.'],
+        'link_failed' => ['error', 'Unable to link user to CRM client.'],
+        'unlink_success' => ['success', 'User unlinked from CRM client.'],
+        'unlink_failed' => ['error', 'Unable to unlink user from CRM client.'],
+        'user_missing' => ['error', 'Please enter a valid user email or username.'],
+        'user_ambiguous' => ['error', 'Multiple users matched. Please use a more specific search.'],
+        'user_already_linked' => ['error', 'That user is already linked to another CRM client.'],
+        'client_already_linked' => ['error', 'This CRM client is already linked to another user.'],
+        'unlink_missing' => ['error', 'This CRM client does not have a linked user.'],
     ];
 
     if (!isset($messages[$notice])) {
@@ -240,4 +450,38 @@ function peracrm_admin_notices()
         esc_attr($class),
         esc_html($message)
     );
+}
+
+function peracrm_admin_add_client_columns($columns)
+{
+    $columns['peracrm_account'] = 'Account';
+    return $columns;
+}
+
+function peracrm_admin_render_client_columns($column, $post_id)
+{
+    if ('peracrm_account' !== $column) {
+        return;
+    }
+
+    $linked_user_id = peracrm_admin_find_linked_user_id($post_id);
+    if ($linked_user_id <= 0) {
+        echo 'Not linked';
+        return;
+    }
+
+    $user = get_userdata($linked_user_id);
+    if (!$user) {
+        echo 'Not linked';
+        return;
+    }
+
+    $edit_link = get_edit_user_link($user->ID);
+    $email = esc_html($user->user_email);
+    if ($edit_link) {
+        echo 'Linked: <a href="' . esc_url($edit_link) . '">' . $email . '</a>';
+        return;
+    }
+
+    echo 'Linked: ' . $email;
 }
