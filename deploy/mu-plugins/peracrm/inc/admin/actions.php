@@ -594,6 +594,12 @@ function peracrm_admin_client_list_context($query)
         global $pagenow;
         $post_type = $query->get('post_type');
         $is_client_list = ('edit.php' === $pagenow && 'crm_client' === $post_type);
+        if ($is_client_list && function_exists('get_current_screen')) {
+            $screen = get_current_screen();
+            if ($screen && 'edit-crm_client' !== $screen->id) {
+                $is_client_list = false;
+            }
+        }
     }
 
     $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
