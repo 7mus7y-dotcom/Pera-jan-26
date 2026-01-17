@@ -39,7 +39,7 @@ function pera_crm_split_name( $name ) {
  * @param array $data Enquiry payload.
  */
 function pera_crm_log_enquiry( $data ) {
-  if ( ! function_exists( 'peracrm_log_event' ) ) {
+  if ( ! function_exists( 'peracrm_log_event' ) && ! function_exists( 'peracrm_resolve_client_id_from_enquiry' ) ) {
     return;
   }
 
@@ -48,43 +48,23 @@ function pera_crm_log_enquiry( $data ) {
     return;
   }
 
-  $client_id = 0;
-  $existing  = get_posts(
-    array(
-      'post_type'      => 'crm_client',
-      'posts_per_page' => 1,
-      'post_status'    => 'any',
-      'fields'         => 'ids',
-      'meta_query'     => array(
-        array(
-          'key'     => 'crm_primary_email',
-          'value'   => $email,
-          'compare' => '=',
-        ),
-      ),
-    )
-  );
-
-  if ( ! empty( $existing ) ) {
-    $client_id = (int) $existing[0];
-  }
-
   $first_name = isset( $data['first_name'] ) ? sanitize_text_field( $data['first_name'] ) : '';
   $last_name  = isset( $data['last_name'] ) ? sanitize_text_field( $data['last_name'] ) : '';
   $phone      = isset( $data['phone'] ) ? sanitize_text_field( $data['phone'] ) : '';
+  $source     = isset( $data['form_source'] ) ? sanitize_key( $data['form_source'] ) : 'web_enquiry';
+  $full_name  = trim( $first_name . ' ' . $last_name );
 
-  if ( ! $client_id ) {
-    if ( ! function_exists( 'peracrm_find_or_create_client_by_email' ) ) {
-      return;
-    }
-
+  $client_id = 0;
+  if ( function_exists( 'peracrm_resolve_client_id_from_enquiry' ) ) {
+    $client_id = peracrm_resolve_client_id_from_enquiry( $email, $full_name, $phone, $source, true );
+  } elseif ( function_exists( 'peracrm_find_or_create_client_by_email' ) ) {
     $client_id = peracrm_find_or_create_client_by_email(
       $email,
       array(
         'first_name' => $first_name,
         'last_name'  => $last_name,
         'phone'      => $phone,
-        'source'     => 'form',
+        'source'     => $source,
         'status'     => 'enquiry',
       )
     );
@@ -107,18 +87,37 @@ function pera_crm_log_enquiry( $data ) {
 
   $payload = array(
     'enquiry_type' => isset( $data['enquiry_type'] ) ? sanitize_text_field( $data['enquiry_type'] ) : '',
+    'form_source'  => $source,
   );
 
   if ( ! empty( $data['property_id'] ) ) {
     $payload['property_id'] = absint( $data['property_id'] );
   }
 
-  if ( $can_log_activity ) {
+  if ( $can_log_activity && function_exists( 'peracrm_log_event' ) ) {
     peracrm_log_event( $client_id, 'enquiry', $payload );
   }
 
   if ( ! empty( $data['property_id'] ) && $payload['enquiry_type'] === 'property' && function_exists( 'peracrm_client_property_link' ) && $can_link_property ) {
     peracrm_client_property_link( $client_id, $payload['property_id'], 'enquiry' );
+  }
+
+  if ( function_exists( 'peracrm_reminder_add' ) ) {
+    $advisor_id = function_exists( 'peracrm_enquiry_get_assigned_advisor_id' )
+      ? (int) peracrm_enquiry_get_assigned_advisor_id( $client_id )
+      : 0;
+
+    if ( $advisor_id > 0 ) {
+      $timestamp = current_time( 'timestamp' ) + DAY_IN_SECONDS;
+      $due_at    = date_i18n( 'Y-m-d H:i:s', $timestamp, false );
+      $note      = 'Follow up: ' . ( $payload['enquiry_type'] ?: 'general' ) . ' enquiry from ' . $email;
+
+      if ( ! empty( $data['property_id'] ) ) {
+        $note .= ' (property ' . absint( $data['property_id'] ) . ')';
+      }
+
+      peracrm_reminder_add( $client_id, $advisor_id, $due_at, $note );
+    }
   }
 }
 
