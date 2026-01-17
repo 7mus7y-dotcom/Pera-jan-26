@@ -131,6 +131,9 @@ function peracrm_handle_add_note()
     if (!$client) {
         wp_die('Invalid client');
     }
+    if (!current_user_can('edit_post', $client_id)) {
+        wp_die('Unauthorized');
+    }
 
     $note_body = isset($_POST['peracrm_note_body']) ? sanitize_textarea_field(wp_unslash($_POST['peracrm_note_body'])) : '';
     if ($note_body === '') {
@@ -157,6 +160,9 @@ function peracrm_handle_add_reminder()
     $client = peracrm_admin_get_client($client_id);
     if (!$client) {
         wp_die('Invalid client');
+    }
+    if (!current_user_can('edit_post', $client_id)) {
+        wp_die('Unauthorized');
     }
 
     $due_at_raw = isset($_POST['peracrm_due_at']) ? wp_unslash($_POST['peracrm_due_at']) : '';
