@@ -18,7 +18,7 @@ require_once PERACRM_INC . '/services/client_service.php';
 require_once PERACRM_INC . '/services/activity_service.php';
 
 if (is_admin()) {
-    $admin_dir = PERACRM_INC . '/admin';
+    $admin_dir = __DIR__ . '/admin';
     $admin_files = [
         'admin.php',
         'metaboxes.php',
