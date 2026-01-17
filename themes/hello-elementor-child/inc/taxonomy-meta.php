@@ -1,7 +1,7 @@
 <?php
 /**
  * Taxonomy Term Meta: Excerpt + Featured Image (ALL TAXONOMIES)
- * Location: /Inc/taxonomy-meta.php
+ * Location: /inc/taxonomy-meta.php
  *
  * Adds term meta fields on ALL public, UI-enabled taxonomies:
  * - Term Excerpt (pera_term_excerpt)
