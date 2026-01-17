@@ -214,9 +214,18 @@ function peracrm_admin_redirect_with_notice($url, $notice)
     exit;
 }
 
-function peracrm_admin_search_user_for_link($search_term)
+function peracrm_admin_search_user_for_link($search_term, $client_id = 0)
 {
+    $client_id = (int) $client_id;
+    if ($client_id > 0 && !current_user_can('edit_post', $client_id)) {
+        return [];
+    }
+
     $search_term = sanitize_text_field($search_term);
+    $search_term = trim($search_term);
+    if (strlen($search_term) > 100) {
+        $search_term = substr($search_term, 0, 100);
+    }
     if ($search_term === '') {
         return [];
     }
@@ -270,7 +279,7 @@ function peracrm_handle_link_user()
     check_admin_referer('peracrm_link_user');
 
     $search_term = isset($_POST['peracrm_user_search']) ? wp_unslash($_POST['peracrm_user_search']) : '';
-    $users = peracrm_admin_search_user_for_link($search_term);
+    $users = peracrm_admin_search_user_for_link($search_term, $client_id);
     if (empty($users)) {
         peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'user_missing');
     }
@@ -464,13 +473,36 @@ function peracrm_admin_render_client_columns($column, $post_id)
         return;
     }
 
-    $linked_user_id = peracrm_admin_find_linked_user_id($post_id);
+    static $linked_user_cache = [];
+    static $user_cache = [];
+
+    if (array_key_exists($post_id, $linked_user_cache)) {
+        $linked_user_id = $linked_user_cache[$post_id];
+    } else {
+        $linked_user_id = peracrm_admin_get_client_linked_user_id($post_id);
+        if ($linked_user_id <= 0) {
+            $users = get_users([
+                'meta_key' => 'crm_client_id',
+                'meta_value' => (int) $post_id,
+                'number' => 1,
+                'fields' => 'ids',
+            ]);
+            $linked_user_id = empty($users) ? 0 : (int) $users[0];
+        }
+        $linked_user_cache[$post_id] = $linked_user_id;
+    }
+
     if ($linked_user_id <= 0) {
         echo 'Not linked';
         return;
     }
 
-    $user = get_userdata($linked_user_id);
+    if (isset($user_cache[$linked_user_id])) {
+        $user = $user_cache[$linked_user_id];
+    } else {
+        $user = get_userdata($linked_user_id);
+        $user_cache[$linked_user_id] = $user;
+    }
     if (!$user) {
         echo 'Not linked';
         return;
