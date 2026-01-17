@@ -45,89 +45,233 @@ function peracrm_render_my_reminders_page()
         wp_die('Unauthorized');
     }
 
-    $advisor_id = get_current_user_id();
-    $timezone = wp_timezone();
-    $today_start = (new DateTime('today', $timezone))->getTimestamp();
-    $today_end = (new DateTime('tomorrow', $timezone))->getTimestamp() - 1;
-    $until = (new DateTime('+14 days', $timezone))->setTime(23, 59, 59)->getTimestamp();
-
-    $reminders = peracrm_admin_get_advisor_reminders_until(
-        $advisor_id,
-        wp_date('Y-m-d H:i:s', $until, $timezone),
-        200
-    );
-
-    $sections = [
-        'overdue' => [
-            'title' => 'Overdue',
-            'items' => [],
-        ],
-        'today' => [
-            'title' => 'Due Today',
-            'items' => [],
-        ],
-        'upcoming' => [
-            'title' => 'Upcoming (next 14 days)',
-            'items' => [],
-        ],
-    ];
-
-    foreach ($reminders as $reminder) {
-        $due_ts = strtotime($reminder['due_at']);
-        if ($due_ts < $today_start) {
-            $sections['overdue']['items'][] = $reminder;
-        } elseif ($due_ts <= $today_end) {
-            $sections['today']['items'][] = $reminder;
-        } else {
-            $sections['upcoming']['items'][] = $reminder;
-        }
-    }
-
     echo '<div class="wrap">';
     echo '<h1>My Reminders</h1>';
 
-    foreach ($sections as $section) {
-        echo '<h2>' . esc_html($section['title']) . '</h2>';
-        if (empty($section['items'])) {
-            echo '<p class="peracrm-empty">No reminders.</p>';
-            continue;
+    $advisor_id = get_current_user_id();
+    $status = isset($_GET['status']) ? sanitize_key(wp_unslash($_GET['status'])) : '';
+    $range = isset($_GET['range']) ? sanitize_key(wp_unslash($_GET['range'])) : '';
+    $orderby = isset($_GET['orderby']) ? sanitize_key(wp_unslash($_GET['orderby'])) : 'due_at';
+    $order = isset($_GET['order']) ? strtolower(sanitize_key(wp_unslash($_GET['order']))) : 'asc';
+
+    $allowed_statuses = array_merge([''], peracrm_reminders_allowed_statuses());
+    if (!in_array($status, $allowed_statuses, true)) {
+        $status = '';
+    }
+
+    $allowed_ranges = ['', 'overdue', 'next_7', 'next_30', 'all'];
+    if (!in_array($range, $allowed_ranges, true)) {
+        $range = '';
+    }
+
+    $allowed_orderby = ['due_at', 'status'];
+    if (!in_array($orderby, $allowed_orderby, true)) {
+        $orderby = 'due_at';
+    }
+
+    $order = $order === 'desc' ? 'desc' : 'asc';
+    $order_param = $orderby === 'status' ? 'status_' . $order : $order;
+
+    $per_page = 50;
+    $paged = isset($_GET['paged']) ? max(1, absint($_GET['paged'])) : 1;
+    $offset = ($paged - 1) * $per_page;
+
+    $reminders = peracrm_reminders_list_for_advisor(
+        $advisor_id,
+        $per_page,
+        $offset,
+        $status !== '' ? $status : null,
+        $range !== '' ? $range : null,
+        $order_param
+    );
+
+    $total = peracrm_reminders_count_for_advisor(
+        $advisor_id,
+        $status !== '' ? $status : null,
+        $range !== '' ? $range : null
+    );
+
+    $client_titles = [];
+    $client_ids = [];
+    foreach ($reminders as $reminder) {
+        if (!empty($reminder['client_id'])) {
+            $client_ids[] = (int) $reminder['client_id'];
         }
+    }
+    $client_ids = array_values(array_unique($client_ids));
+    if (!empty($client_ids)) {
+        $clients = get_posts([
+            'post_type' => 'crm_client',
+            'post__in' => $client_ids,
+            'posts_per_page' => count($client_ids),
+            'post_status' => 'any',
+        ]);
+        foreach ($clients as $client) {
+            $client_titles[(int) $client->ID] = $client->post_title;
+        }
+    }
 
-        echo '<table class="widefat fixed striped">';
-        echo '<thead><tr><th>Due</th><th>Client</th><th>Note</th><th>Action</th></tr></thead>';
-        echo '<tbody>';
-        foreach ($section['items'] as $reminder) {
-            $client_id = (int) $reminder['client_id'];
-            $client_title = get_the_title($client_id);
-            if (!$client_title) {
-                $client_title = 'Client #' . $client_id;
-            }
-            $client_link = get_edit_post_link($client_id, '');
-            $due_at = mysql2date('Y-m-d H:i', $reminder['due_at']);
-            $note = $reminder['note'] ? $reminder['note'] : '';
+    echo '<form method="get" class="peracrm-filters">';
+    echo '<input type="hidden" name="post_type" value="crm_client" />';
+    echo '<input type="hidden" name="page" value="peracrm-my-reminders" />';
+    echo '<label for="peracrm-filter-status" class="screen-reader-text">Status</label>';
+    echo '<select name="status" id="peracrm-filter-status">';
+    $status_options = [
+        '' => 'All statuses',
+        'pending' => 'Pending',
+        'done' => 'Done',
+        'dismissed' => 'Dismissed',
+    ];
+    foreach ($status_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($status, $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select>';
+    echo '<label for="peracrm-filter-range" class="screen-reader-text">Date range</label>';
+    echo '<select name="range" id="peracrm-filter-range">';
+    $range_options = [
+        '' => 'All dates',
+        'overdue' => 'Overdue',
+        'next_7' => 'Next 7 days',
+        'next_30' => 'Next 30 days',
+    ];
+    foreach ($range_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($range, $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select>';
+    echo '<label for="peracrm-filter-orderby" class="screen-reader-text">Sort by</label>';
+    echo '<select name="orderby" id="peracrm-filter-orderby">';
+    $orderby_options = [
+        'due_at' => 'Sort by due date',
+        'status' => 'Sort by status',
+    ];
+    foreach ($orderby_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($orderby, $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select>';
+    echo '<label for="peracrm-filter-order" class="screen-reader-text">Order</label>';
+    echo '<select name="order" id="peracrm-filter-order">';
+    $order_options = [
+        'asc' => 'Ascending',
+        'desc' => 'Descending',
+    ];
+    foreach ($order_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($order, $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select>';
+    echo '<button type="submit" class="button">Filter</button>';
+    echo '</form>';
 
-            echo '<tr>';
-            echo '<td>' . esc_html($due_at) . '</td>';
-            echo '<td>';
-            if ($client_link) {
-                echo '<a href="' . esc_url($client_link) . '">' . esc_html($client_title) . '</a>';
-            } else {
-                echo esc_html($client_title);
-            }
-            echo '</td>';
-            echo '<td>' . esc_html($note) . '</td>';
-            echo '<td>';
+    if (empty($reminders)) {
+        echo '<p class="peracrm-empty">No reminders found.</p>';
+        echo '</div>';
+        return;
+    }
+
+    $current_url = add_query_arg(
+        [
+            'post_type' => 'crm_client',
+            'page' => 'peracrm-my-reminders',
+            'status' => $status,
+            'range' => $range,
+            'orderby' => $orderby,
+            'order' => $order,
+            'paged' => $paged,
+        ],
+        admin_url('edit.php')
+    );
+
+    echo '<table class="widefat fixed striped">';
+    echo '<thead><tr><th>Due</th><th>Client</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>';
+    echo '<tbody>';
+    foreach ($reminders as $reminder) {
+        $client_id = (int) $reminder['client_id'];
+        $client_title = isset($client_titles[$client_id]) && $client_titles[$client_id] !== '' ? $client_titles[$client_id] : 'Client #' . $client_id;
+        $client_link = get_edit_post_link($client_id, '');
+        $due_at = mysql2date('Y-m-d H:i', $reminder['due_at']);
+        $note = $reminder['note'] ? wp_trim_words($reminder['note'], 15, '…') : '';
+        $status_label = ucfirst($reminder['status']);
+
+        echo '<tr>';
+        echo '<td>' . esc_html($due_at) . '</td>';
+        echo '<td>';
+        if ($client_link) {
+            echo '<a href="' . esc_url($client_link) . '">' . esc_html($client_title) . '</a>';
+        } else {
+            echo esc_html($client_title);
+        }
+        echo '</td>';
+        echo '<td>' . esc_html($note) . '</td>';
+        echo '<td>' . esc_html($status_label) . '</td>';
+        echo '<td>';
+        if ($reminder['status'] === 'pending') {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-inline-form">';
-            wp_nonce_field('peracrm_mark_reminder_done');
-            echo '<input type="hidden" name="action" value="peracrm_mark_reminder_done" />';
+            wp_nonce_field('peracrm_update_reminder_status');
+            echo '<input type="hidden" name="action" value="peracrm_update_reminder_status" />';
             echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
-            echo '<input type="hidden" name="peracrm_redirect" value="' . esc_url(admin_url('edit.php?post_type=crm_client&page=peracrm-my-reminders')) . '" />';
+            echo '<input type="hidden" name="peracrm_status" value="done" />';
+            echo '<input type="hidden" name="peracrm_redirect" value="' . esc_url($current_url) . '" />';
             echo '<button type="submit" class="button">Mark done</button>';
             echo '</form>';
-            echo '</td>';
-            echo '</tr>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-inline-form">';
+            wp_nonce_field('peracrm_update_reminder_status');
+            echo '<input type="hidden" name="action" value="peracrm_update_reminder_status" />';
+            echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
+            echo '<input type="hidden" name="peracrm_status" value="dismissed" />';
+            echo '<input type="hidden" name="peracrm_redirect" value="' . esc_url($current_url) . '" />';
+            echo '<button type="submit" class="button">Dismiss</button>';
+            echo '</form>';
+        } else {
+            echo '—';
         }
-        echo '</tbody></table>';
+        echo '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+
+    $total_pages = (int) ceil($total / $per_page);
+    if ($total_pages > 1) {
+        $page_links = paginate_links([
+            'base' => add_query_arg(
+                [
+                    'post_type' => 'crm_client',
+                    'page' => 'peracrm-my-reminders',
+                    'status' => $status,
+                    'range' => $range,
+                    'orderby' => $orderby,
+                    'order' => $order,
+                    'paged' => '%#%',
+                ],
+                admin_url('edit.php')
+            ),
+            'format' => '',
+            'current' => $paged,
+            'total' => $total_pages,
+            'type' => 'list',
+        ]);
+
+        if ($page_links) {
+            echo '<div class="tablenav"><div class="tablenav-pages">' . $page_links . '</div></div>';
+        }
     }
 
     echo '</div>';
