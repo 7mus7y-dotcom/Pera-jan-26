@@ -8,6 +8,7 @@ require_once PERACRM_INC . '/helpers.php';
 require_once PERACRM_INC . '/schema.php';
 require_once PERACRM_INC . '/roles.php';
 require_once PERACRM_INC . '/cpt.php';
+require_once PERACRM_INC . '/favourites.php';
 
 require_once PERACRM_INC . '/repositories/notes.php';
 require_once PERACRM_INC . '/repositories/reminders.php';

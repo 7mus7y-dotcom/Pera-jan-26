@@ -52,6 +52,18 @@ $title        = get_the_title( $property_id );
 $permalink    = get_permalink( $property_id );
 $project_name = function_exists( 'get_field' ) ? (string) get_field( 'project_name', $property_id ) : '';
 $excerpt      = get_the_excerpt( $property_id );
+$crm_client_id = function_exists( 'pera_get_current_crm_client_id' )
+  ? pera_get_current_crm_client_id()
+  : 0;
+$favourites_enabled = false;
+$is_favourited = false;
+
+if ( $crm_client_id && function_exists( 'peracrm_favourites_table_exists' ) && function_exists( 'peracrm_favourite_is_favourited' ) ) {
+  if ( peracrm_favourites_table_exists() ) {
+    $favourites_enabled = true;
+    $is_favourited = peracrm_favourite_is_favourited( $crm_client_id, $property_id );
+  }
+}
 
 /* 2) TAXONOMIES */
 $district      = wp_get_post_terms( $property_id, 'district' );
@@ -567,6 +579,21 @@ $has_further_reading = ! empty( $post_ids );
             <use href="<?php echo esc_url( get_stylesheet_directory_uri() . '/logos-icons/icons.svg#icon-whatsapp' ); ?>"></use>
           </svg> WhatsApp
         </a>
+
+        <?php if ( $crm_client_id && $favourites_enabled ) : ?>
+          <form class="crm-favourite-toggle" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <input type="hidden" name="action" value="peracrm_toggle_favourite" />
+            <input type="hidden" name="property_id" value="<?php echo esc_attr( $property_id ); ?>" />
+            <?php wp_nonce_field( 'peracrm_toggle_favourite' ); ?>
+            <button type="submit" class="btn btn--outline btn--blue">
+              <?php echo esc_html( $is_favourited ? __( 'Saved', 'hello-elementor-child' ) : __( 'Save', 'hello-elementor-child' ) ); ?>
+            </button>
+          </form>
+        <?php elseif ( ! is_user_logged_in() ) : ?>
+          <a class="btn btn--outline btn--blue" href="<?php echo esc_url( wp_login_url( $permalink ) ); ?>">
+            <?php esc_html_e( 'Log in to save', 'hello-elementor-child' ); ?>
+          </a>
+        <?php endif; ?>
       </div>
 
     </div><!-- /.property-hero__meta -->
