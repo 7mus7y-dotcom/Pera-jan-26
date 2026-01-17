@@ -17,6 +17,10 @@ require_once get_stylesheet_directory() . '/inc/taxonomy-meta.php';
  * Published term counts helper (publish-only counts for property CPT)
  */
 require_once get_stylesheet_directory() . '/inc/published-term-counts.php';
+/**
+ * CRM client context helpers.
+ */
+require_once get_stylesheet_directory() . '/inc/crm-client-context.php';
 
 
 /**
@@ -274,6 +278,31 @@ add_action( 'wp_enqueue_scripts', function () {
     );
   }
 
+}, 20 );
+
+/**
+ * CRM client dashboard styles (account pages only).
+ */
+add_action( 'wp_enqueue_scripts', function () {
+
+  if ( is_admin() ) {
+    return;
+  }
+
+  $is_account_page = is_page( array(
+    'account/dashboard',
+    'account/enquiries',
+    'account/properties',
+  ) );
+
+  if ( $is_account_page ) {
+    wp_enqueue_style(
+      'pera-crm-client',
+      get_stylesheet_directory_uri() . '/css/crm-client.css',
+      array( 'pera-main-css' ),
+      filemtime( get_stylesheet_directory() . '/css/crm-client.css' )
+    );
+  }
 }, 20 );
 
   /* =========================
@@ -1154,4 +1183,3 @@ add_action( 'init', function () {
     wp_update_term_count_now( $terms, 'bedrooms' );
   }
 }, 1 );*/
-
