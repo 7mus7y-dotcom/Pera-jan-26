@@ -295,6 +295,70 @@ function peracrm_reminders_next_due_by_client_ids($client_ids, $advisor_user_id 
     return $results;
 }
 
+function peracrm_reminders_counts_by_client_ids($client_ids, $advisor_user_id = null)
+{
+    $client_ids = array_values(array_unique(array_filter(array_map('absint', (array) $client_ids))));
+    if (empty($client_ids)) {
+        return [
+            'open_count' => [],
+            'overdue_count' => [],
+            'next_due' => [],
+        ];
+    }
+
+    if (!peracrm_reminders_table_exists()) {
+        return [
+            'open_count' => [],
+            'overdue_count' => [],
+            'next_due' => [],
+        ];
+    }
+
+    global $wpdb;
+    $table = peracrm_table('crm_reminders');
+    $placeholders = implode(',', array_fill(0, count($client_ids), '%d'));
+    $now_mysql = current_time('mysql');
+    $conditions = ["client_id IN ({$placeholders})"];
+    $params = $client_ids;
+
+    $advisor_user_id = (int) $advisor_user_id;
+    if ($advisor_user_id > 0) {
+        $conditions[] = 'advisor_user_id = %d';
+        $params[] = $advisor_user_id;
+    }
+
+    $params = array_merge(['pending', 'pending', $now_mysql, 'pending'], $params);
+
+    $query = $wpdb->prepare(
+        "SELECT client_id,
+                SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN status = %s AND due_at < %s THEN 1 ELSE 0 END) AS overdue_count,
+                MIN(CASE WHEN status = %s THEN due_at ELSE NULL END) AS next_due
+         FROM {$table}
+         WHERE " . implode(' AND ', $conditions) . '
+         GROUP BY client_id',
+        $params
+    );
+
+    $rows = $wpdb->get_results($query, ARRAY_A);
+    $open_counts = [];
+    $overdue_counts = [];
+    $next_due = [];
+
+    foreach ($rows as $row) {
+        $client_id = (int) $row['client_id'];
+        $open_counts[$client_id] = isset($row['open_count']) ? (int) $row['open_count'] : 0;
+        $overdue_counts[$client_id] = isset($row['overdue_count']) ? (int) $row['overdue_count'] : 0;
+        $next_due[$client_id] = isset($row['next_due']) ? (string) $row['next_due'] : '';
+    }
+
+    return [
+        'open_count' => $open_counts,
+        'overdue_count' => $overdue_counts,
+        'next_due' => $next_due,
+    ];
+}
+
 function peracrm_reminders_list_for_advisor($advisor_user_id, $limit = 50, $offset = 0, $status = null, $range = null, $order = 'asc')
 {
     if (peracrm_reminders_table_exists()) {
