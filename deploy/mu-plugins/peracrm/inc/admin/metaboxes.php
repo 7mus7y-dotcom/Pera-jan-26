@@ -206,7 +206,7 @@ function peracrm_render_client_profile_metabox($post)
         echo '<p><a class="button" href="' . esc_url($mailto_link) . '">' . esc_html('Email') . '</a></p>';
     }
     if ($phone === '' && $wa_link === '' && $email === '') {
-        echo '<p class="peracrm-empty">Add a phone or email to enable quick actions.</p>';
+        echo '<p class="peracrm-empty">' . esc_html('Add a phone or email to enable quick actions.') . '</p>';
     }
     echo '</div>';
 

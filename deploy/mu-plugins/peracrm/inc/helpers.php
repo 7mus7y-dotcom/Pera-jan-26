@@ -54,23 +54,15 @@ function peracrm_client_get_assigned_advisor_id($client_id)
     $assigned_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
     $crm_id = (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
 
-    if ($assigned_id > 0 && $crm_id > 0 && $assigned_id !== $crm_id) {
-        $assigned_user = get_userdata($assigned_id);
-        $crm_user = get_userdata($crm_id);
-        if ($assigned_user && (user_can($assigned_user, 'edit_crm_clients') || user_can($assigned_user, 'manage_options'))) {
-            return $assigned_id;
-        }
-        if ($crm_user) {
-            return $crm_id;
-        }
+    if (peracrm_user_is_valid_advisor($assigned_id)) {
         return $assigned_id;
     }
 
-    if ($assigned_id > 0) {
-        return $assigned_id;
+    if (peracrm_user_is_valid_advisor($crm_id)) {
+        return $crm_id;
     }
 
-    return $crm_id;
+    return 0;
 }
 
 function peracrm_client_get_profile($client_id)
@@ -201,4 +193,19 @@ function peracrm_client_profile_sanitize_budget($value)
     }
 
     return $value;
+}
+
+function peracrm_user_is_valid_advisor($user_id)
+{
+    $user_id = (int) $user_id;
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $user = get_userdata($user_id);
+    if (!$user) {
+        return false;
+    }
+
+    return user_can($user, 'manage_options') || user_can($user, 'edit_crm_clients');
 }

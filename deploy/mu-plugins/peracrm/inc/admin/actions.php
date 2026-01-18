@@ -214,13 +214,28 @@ function peracrm_admin_search_user_for_link($search_term, $client_id = 0)
     ]);
 }
 
+function peracrm_admin_get_assigned_advisor_id_for_client($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    if (function_exists('peracrm_client_get_assigned_advisor_id')) {
+        return (int) peracrm_client_get_assigned_advisor_id($client_id);
+    }
+
+    $assigned = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
+    if ($assigned > 0) {
+        return $assigned;
+    }
+
+    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+}
+
 function peracrm_handle_add_note()
 {
     if (!is_user_logged_in()) {
-        wp_die('Unauthorized');
-    }
-
-    if (!peracrm_admin_user_can_manage()) {
         wp_die('Unauthorized');
     }
 
@@ -232,12 +247,10 @@ function peracrm_handle_add_note()
         wp_die('Invalid client');
     }
 
-    $current_user_id = get_current_user_id();
-    $assigned_advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
-        ? (int) peracrm_client_get_assigned_advisor_id($client_id)
-        : 0;
-    $is_admin = current_user_can('manage_options');
-    if (!$is_admin && $assigned_advisor_id !== $current_user_id) {
+    $assigned_advisor_id = peracrm_admin_get_assigned_advisor_id_for_client($client_id);
+    $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+    $is_assigned_advisor = $assigned_advisor_id > 0 && $assigned_advisor_id === get_current_user_id();
+    if (!$can_override && !$is_assigned_advisor) {
         wp_die('Unauthorized');
     }
 
@@ -434,12 +447,10 @@ function peracrm_handle_reassign_client_advisor()
     }
 
     $new_advisor = isset($_POST['peracrm_assigned_advisor']) ? absint($_POST['peracrm_assigned_advisor']) : 0;
-    if ($new_advisor > 0) {
-        $advisor_user = get_userdata($new_advisor);
-        if (!$advisor_user || (!user_can($advisor_user, 'edit_crm_clients') && !user_can($advisor_user, 'manage_options'))) {
-            wp_die('Invalid advisor assignment.');
-        }
+    if ($new_advisor > 0 && !peracrm_user_is_valid_advisor($new_advisor)) {
+        wp_die('Invalid advisor selection.');
     }
+
     $old_advisor = function_exists('peracrm_client_get_assigned_advisor_id')
         ? (int) peracrm_client_get_assigned_advisor_id($client_id)
         : 0;
@@ -479,7 +490,7 @@ function peracrm_handle_reassign_client_advisor()
 
 function peracrm_handle_add_reminder()
 {
-    if (!is_user_logged_in() || !peracrm_admin_user_can_manage()) {
+    if (!is_user_logged_in()) {
         wp_die('Unauthorized');
     }
 
