@@ -6,6 +6,7 @@ if (!defined('ABSPATH')) {
 
 require_once PERACRM_INC . '/admin/pages/work-queue.php';
 require_once PERACRM_INC . '/admin/pages/client-view.php';
+require_once PERACRM_INC . '/admin/pages/pipeline.php';
 
 function peracrm_register_admin_menu()
 {
@@ -38,6 +39,19 @@ function peracrm_register_admin_menu()
         'peracrm_render_work_queue_page'
     );
 
+    $pipeline_hook = add_submenu_page(
+        $parent_slug,
+        'Pipeline',
+        'Pipeline',
+        'edit_crm_clients',
+        'peracrm-pipeline',
+        'peracrm_render_pipeline_page'
+    );
+
+    if ($pipeline_hook) {
+        $GLOBALS['peracrm_pipeline_hook'] = $pipeline_hook;
+    }
+
     add_submenu_page(
         $parent_slug,
         'Client View',
@@ -56,6 +70,13 @@ function peracrm_admin_required_capability()
 function peracrm_admin_is_my_reminders_screen($hook)
 {
     $stored = isset($GLOBALS['peracrm_my_reminders_hook']) ? $GLOBALS['peracrm_my_reminders_hook'] : '';
+
+    return $stored !== '' && $hook === $stored;
+}
+
+function peracrm_admin_is_pipeline_screen($hook)
+{
+    $stored = isset($GLOBALS['peracrm_pipeline_hook']) ? $GLOBALS['peracrm_pipeline_hook'] : '';
 
     return $stored !== '' && $hook === $stored;
 }
