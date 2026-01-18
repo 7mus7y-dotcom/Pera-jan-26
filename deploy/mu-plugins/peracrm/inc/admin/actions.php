@@ -14,10 +14,20 @@ function peracrm_admin_user_can_manage_all_reminders()
     return current_user_can('manage_options') || current_user_can('edit_others_crm_clients');
 }
 
+function peracrm_admin_actor_can_manage_all_reminders($actor_id)
+{
+    $actor_id = (int) $actor_id;
+    if ($actor_id <= 0) {
+        return false;
+    }
+
+    return user_can($actor_id, 'manage_options') || user_can($actor_id, 'edit_others_crm_clients');
+}
+
 function peracrm_admin_actor_can_manage_reminder($reminder, $actor_id)
 {
     $actor_id = (int) $actor_id;
-    if ($actor_id > 0 && (user_can($actor_id, 'manage_options') || user_can($actor_id, 'edit_others_crm_clients'))) {
+    if (peracrm_admin_actor_can_manage_all_reminders($actor_id)) {
         return true;
     }
 
