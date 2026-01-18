@@ -40,6 +40,15 @@ function peracrm_json_decode($json)
     return $decoded;
 }
 
+function peracrm_pipeline_assigned_meta_keys()
+{
+    if (function_exists('peracrm_admin_work_queue_assigned_meta_keys')) {
+        return peracrm_admin_work_queue_assigned_meta_keys();
+    }
+
+    return ['assigned_advisor_user_id', 'crm_assigned_advisor'];
+}
+
 function peracrm_client_get_assigned_advisor_id($client_id)
 {
     $client_id = (int) $client_id;

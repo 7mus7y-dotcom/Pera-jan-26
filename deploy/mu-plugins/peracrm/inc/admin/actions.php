@@ -9,6 +9,38 @@ function peracrm_admin_user_can_manage()
     return current_user_can('manage_options') || current_user_can('edit_crm_clients');
 }
 
+function peracrm_pipeline_status_labels()
+{
+    return [
+        'enquiry' => 'Enquiry',
+        'active' => 'Active',
+        'dormant' => 'Dormant',
+        'closed' => 'Closed',
+    ];
+}
+
+function peracrm_pipeline_client_type_options()
+{
+    return [
+        'all' => 'All types',
+        'citizenship' => 'Citizenship',
+        'investor' => 'Investor',
+        'lifestyle' => 'Lifestyle',
+    ];
+}
+
+function peracrm_pipeline_health_options()
+{
+    return [
+        'all' => 'All health',
+        'hot' => 'Hot',
+        'warm' => 'Warm',
+        'cold' => 'Cold',
+        'at_risk' => 'At risk',
+        'none' => 'None',
+    ];
+}
+
 function peracrm_pipeline_get_user_views($user_id)
 {
     $views = get_user_meta((int) $user_id, '_peracrm_pipeline_views', true);
@@ -108,6 +140,39 @@ function peracrm_pipeline_build_base_url($filters = [])
     }
 
     return add_query_arg($base, admin_url('edit.php'));
+}
+
+function peracrm_pipeline_build_base_meta_query($client_type, $advisor_id)
+{
+    $meta_query = [
+        'relation' => 'AND',
+    ];
+
+    if ($client_type !== 'all') {
+        $meta_query[] = [
+            'key' => '_peracrm_client_type',
+            'value' => $client_type,
+            'compare' => '=',
+        ];
+    }
+
+    $advisor_id = (int) $advisor_id;
+    if ($advisor_id > 0) {
+        $meta_keys = peracrm_pipeline_assigned_meta_keys();
+        if (!empty($meta_keys)) {
+            $assigned_query = ['relation' => 'OR'];
+            foreach ($meta_keys as $meta_key) {
+                $assigned_query[] = [
+                    'key' => $meta_key,
+                    'value' => $advisor_id,
+                    'compare' => '=',
+                ];
+            }
+            $meta_query[] = $assigned_query;
+        }
+    }
+
+    return $meta_query;
 }
 
 function peracrm_admin_get_client($client_id)
@@ -724,6 +789,246 @@ function peracrm_handle_pipeline_bulk_action()
     }
 
     peracrm_pipeline_bulk_redirect($redirect, $action_key, $done, $failed, $capped);
+}
+
+function peracrm_pipeline_export_csv_escape($value)
+{
+    if (!is_string($value)) {
+        return $value;
+    }
+
+    if (preg_match('/^[=+\\-@]/', $value)) {
+        return "'" . $value;
+    }
+
+    return $value;
+}
+
+function peracrm_handle_pipeline_export_csv()
+{
+    if (!is_user_logged_in()) {
+        wp_die('Unauthorized');
+    }
+
+    if (!current_user_can('edit_crm_clients')) {
+        wp_die('Unauthorized');
+    }
+
+    check_admin_referer('peracrm_pipeline_export_csv');
+
+    $is_admin = current_user_can('manage_options');
+    $can_manage_all = $is_admin || current_user_can('peracrm_manage_all_clients');
+
+    $client_type_options = peracrm_pipeline_client_type_options();
+    $health_options = peracrm_pipeline_health_options();
+
+    $client_type = isset($_POST['client_type']) ? sanitize_key(wp_unslash($_POST['client_type'])) : 'all';
+    if (!isset($client_type_options[$client_type])) {
+        $client_type = 'all';
+    }
+
+    $health_filter = isset($_POST['health']) ? sanitize_key(wp_unslash($_POST['health'])) : 'all';
+    if (!isset($health_options[$health_filter])) {
+        $health_filter = 'all';
+    }
+
+    $advisor_id = isset($_POST['advisor_id']) ? absint($_POST['advisor_id']) : 0;
+    if (!$can_manage_all) {
+        $advisor_id = get_current_user_id();
+    } elseif ($advisor_id > 0 && !peracrm_user_is_valid_advisor($advisor_id)) {
+        $advisor_id = 0;
+    }
+
+    $scope_advisor_id = $advisor_id > 0 ? $advisor_id : 0;
+    if (!$can_manage_all) {
+        $scope_advisor_id = get_current_user_id();
+    }
+
+    $status_labels = peracrm_pipeline_status_labels();
+    $status_keys = array_keys($status_labels);
+    $meta_query = peracrm_pipeline_build_base_meta_query($client_type, $scope_advisor_id);
+    $meta_query[] = [
+        'key' => '_peracrm_status',
+        'value' => $status_keys,
+        'compare' => 'IN',
+    ];
+
+    $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    $has_reminders_table = function_exists('peracrm_reminders_table_exists') && peracrm_reminders_table_exists();
+
+    $max_rows = 500;
+    $batch_size = 200;
+    $matched_ids = [];
+    $health_map = [];
+    $capped = false;
+    $paged = 1;
+
+    while (count($matched_ids) < $max_rows) {
+        $query = new WP_Query([
+            'post_type' => 'crm_client',
+            'post_status' => 'any',
+            'fields' => 'ids',
+            'posts_per_page' => $batch_size,
+            'paged' => $paged,
+            'orderby' => 'title',
+            'order' => 'ASC',
+            'meta_query' => $meta_query,
+        ]);
+
+        $page_ids = array_values(array_map('intval', $query->posts));
+        if (empty($page_ids)) {
+            break;
+        }
+
+        update_meta_cache('post', $page_ids);
+        if ($has_activity_table && function_exists('peracrm_client_health_prime_cache')) {
+            peracrm_client_health_prime_cache($page_ids);
+        }
+
+        foreach ($page_ids as $client_id) {
+            if ($has_activity_table && function_exists('peracrm_client_health_get')) {
+                $health_map[$client_id] = peracrm_client_health_get($client_id);
+            }
+
+            if ($health_filter !== 'all') {
+                $health_key = isset($health_map[$client_id]['key']) ? $health_map[$client_id]['key'] : 'none';
+                if ($health_key !== $health_filter) {
+                    continue;
+                }
+            }
+
+            $matched_ids[] = $client_id;
+            if (count($matched_ids) >= $max_rows) {
+                if ($query->max_num_pages > $paged || count($page_ids) > array_search($client_id, $page_ids, true) + 1) {
+                    $capped = true;
+                }
+                break 2;
+            }
+        }
+
+        if ($paged >= (int) $query->max_num_pages) {
+            break;
+        }
+        $paged++;
+    }
+
+    $matched_ids = array_values(array_unique($matched_ids));
+    if ($has_activity_table && function_exists('peracrm_client_health_prime_cache')) {
+        peracrm_client_health_prime_cache($matched_ids);
+        foreach ($matched_ids as $client_id) {
+            if (!isset($health_map[$client_id]) && function_exists('peracrm_client_health_get')) {
+                $health_map[$client_id] = peracrm_client_health_get($client_id);
+            }
+        }
+    }
+
+    $reminder_counts = ['open_count' => [], 'overdue_count' => [], 'next_due' => []];
+    if ($has_reminders_table && function_exists('peracrm_reminders_counts_by_client_ids')) {
+        $reminder_scope = $scope_advisor_id > 0 ? $scope_advisor_id : null;
+        $reminder_counts = peracrm_reminders_counts_by_client_ids($matched_ids, $reminder_scope);
+    }
+
+    $assigned_advisor_ids = [];
+    foreach ($matched_ids as $client_id) {
+        if (function_exists('peracrm_client_get_assigned_advisor_id')) {
+            $assigned_id = (int) peracrm_client_get_assigned_advisor_id($client_id);
+            if ($assigned_id > 0) {
+                $assigned_advisor_ids[] = $assigned_id;
+            }
+        }
+    }
+    $assigned_advisor_ids = array_values(array_unique($assigned_advisor_ids));
+    $advisor_map = [];
+    if (!empty($assigned_advisor_ids)) {
+        $advisors = get_users([
+            'include' => $assigned_advisor_ids,
+            'fields' => ['ID', 'display_name'],
+        ]);
+        foreach ($advisors as $advisor) {
+            $advisor_map[(int) $advisor->ID] = $advisor->display_name;
+        }
+    }
+
+    nocache_headers();
+    $filename = sprintf('peracrm-pipeline-export-%s.csv', wp_date('Y-m-d'));
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=' . $filename);
+
+    $output = fopen('php://output', 'w');
+    if ($capped) {
+        fputcsv($output, ['NOTE: Export capped to first 500 rows.']);
+    }
+
+    fputcsv($output, [
+        'client_id',
+        'client_name',
+        'status',
+        'client_type',
+        'assigned_advisor_id',
+        'assigned_advisor_name',
+        'budget_min_usd',
+        'budget_max_usd',
+        'phone',
+        'email',
+        'health',
+        'last_activity',
+        'open_reminders',
+        'overdue_reminders',
+        'next_due',
+    ]);
+
+    $open_counts = isset($reminder_counts['open_count']) ? $reminder_counts['open_count'] : [];
+    $overdue_counts = isset($reminder_counts['overdue_count']) ? $reminder_counts['overdue_count'] : [];
+    $next_due_map = isset($reminder_counts['next_due']) ? $reminder_counts['next_due'] : [];
+
+    foreach ($matched_ids as $client_id) {
+        $client_name = get_the_title($client_id);
+        $status = get_post_meta($client_id, '_peracrm_status', true);
+        $client_type_value = get_post_meta($client_id, '_peracrm_client_type', true);
+        $assigned_id = function_exists('peracrm_client_get_assigned_advisor_id')
+            ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+            : 0;
+        $assigned_name = $assigned_id > 0 && isset($advisor_map[$assigned_id]) ? $advisor_map[$assigned_id] : '';
+        $budget_min = get_post_meta($client_id, '_peracrm_budget_min_usd', true);
+        $budget_max = get_post_meta($client_id, '_peracrm_budget_max_usd', true);
+        $phone = get_post_meta($client_id, '_peracrm_phone', true);
+        $email = get_post_meta($client_id, '_peracrm_email', true);
+
+        $health_label = 'None';
+        $last_activity = '';
+        if ($has_activity_table && isset($health_map[$client_id])) {
+            $health_label = isset($health_map[$client_id]['label']) ? $health_map[$client_id]['label'] : 'None';
+            $last_activity_ts = isset($health_map[$client_id]['last_activity_ts']) ? (int) $health_map[$client_id]['last_activity_ts'] : 0;
+            if ($last_activity_ts) {
+                $last_activity = wp_date('c', $last_activity_ts);
+            }
+        }
+
+        $open = $has_reminders_table && isset($open_counts[$client_id]) ? (int) $open_counts[$client_id] : 0;
+        $overdue = $has_reminders_table && isset($overdue_counts[$client_id]) ? (int) $overdue_counts[$client_id] : 0;
+        $next_due = $has_reminders_table && isset($next_due_map[$client_id]) ? $next_due_map[$client_id] : '';
+
+        fputcsv($output, [
+            $client_id,
+            peracrm_pipeline_export_csv_escape($client_name),
+            $status,
+            $client_type_value,
+            $assigned_id,
+            $assigned_name,
+            $budget_min,
+            $budget_max,
+            peracrm_pipeline_export_csv_escape($phone),
+            peracrm_pipeline_export_csv_escape($email),
+            $health_label,
+            $last_activity,
+            $open,
+            $overdue,
+            $next_due,
+        ]);
+    }
+
+    fclose($output);
+    exit;
 }
 
 function peracrm_handle_link_user()
