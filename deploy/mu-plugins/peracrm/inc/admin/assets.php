@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 
 function peracrm_admin_is_crm_client_screen($hook)
 {
-    if (!in_array($hook, ['post.php', 'post-new.php'], true)) {
+    if (!in_array($hook, ['post.php', 'post-new.php', 'edit.php'], true)) {
         return false;
     }
 
