@@ -18,6 +18,8 @@ add_action('admin_post_peracrm_mark_reminder_done', 'peracrm_handle_mark_reminde
 add_action('admin_post_peracrm_update_reminder_status', 'peracrm_handle_update_reminder_status');
 add_action('admin_post_peracrm_link_user', 'peracrm_handle_link_user');
 add_action('admin_post_peracrm_unlink_user', 'peracrm_handle_unlink_user');
+add_action('admin_post_peracrm_save_client_profile', 'peracrm_handle_save_client_profile');
+add_action('admin_post_peracrm_reassign_client_advisor', 'peracrm_handle_reassign_client_advisor');
 
 add_action('admin_notices', 'peracrm_admin_notices');
 add_action('admin_enqueue_scripts', 'peracrm_admin_enqueue_assets');

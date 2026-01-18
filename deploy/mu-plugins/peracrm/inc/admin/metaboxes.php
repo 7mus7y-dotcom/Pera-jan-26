@@ -11,6 +11,15 @@ function peracrm_register_metaboxes($post_type, $post)
     }
 
     add_meta_box(
+        'peracrm_client_profile',
+        'Client Profile',
+        'peracrm_render_client_profile_metabox',
+        'crm_client',
+        'normal',
+        'high'
+    );
+
+    add_meta_box(
         'peracrm_notes',
         'Advisor Notes',
         'peracrm_render_notes_metabox',
@@ -65,6 +74,200 @@ function peracrm_register_metaboxes($post_type, $post)
         'side',
         'default'
     );
+
+    add_meta_box(
+        'peracrm_assigned_advisor',
+        'Assigned Advisor',
+        'peracrm_render_assigned_advisor_metabox',
+        'crm_client',
+        'side',
+        'default'
+    );
+}
+
+function peracrm_render_client_profile_metabox($post)
+{
+    $profile = function_exists('peracrm_client_get_profile')
+        ? peracrm_client_get_profile($post->ID)
+        : [
+            'status' => '',
+            'client_type' => '',
+            'preferred_contact' => '',
+            'budget_min_usd' => '',
+            'budget_max_usd' => '',
+            'phone' => '',
+            'email' => '',
+        ];
+
+    $status_options = [
+        'enquiry' => 'Enquiry',
+        'active' => 'Active',
+        'dormant' => 'Dormant',
+        'closed' => 'Closed',
+    ];
+
+    $type_options = [
+        'citizenship' => 'Citizenship',
+        'investor' => 'Investor',
+        'lifestyle' => 'Lifestyle',
+    ];
+
+    $contact_options = [
+        '' => 'No preference',
+        'phone' => 'Phone',
+        'whatsapp' => 'WhatsApp',
+        'email' => 'Email',
+    ];
+
+    $phone = isset($profile['phone']) ? (string) $profile['phone'] : '';
+    $email = isset($profile['email']) ? (string) $profile['email'] : '';
+
+    $wa_link = '';
+    $phone_trimmed = ltrim($phone);
+    if ($phone_trimmed !== '' && strpos($phone_trimmed, '+') === 0) {
+        $wa_digits = preg_replace('/\D+/', '', $phone_trimmed);
+        if ($wa_digits !== '') {
+            $wa_link = 'https://wa.me/' . $wa_digits;
+        }
+    }
+
+    echo '<div class="peracrm-metabox">';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-form">';
+    wp_nonce_field('peracrm_save_client_profile');
+    echo '<input type="hidden" name="action" value="peracrm_save_client_profile" />';
+    echo '<input type="hidden" name="peracrm_client_id" value="' . esc_attr($post->ID) . '" />';
+
+    echo '<p><label for="peracrm-status">Status</label></p>';
+    echo '<p><select name="peracrm_status" id="peracrm-status" class="widefat">';
+    foreach ($status_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($profile['status'] ?? '', $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select></p>';
+
+    echo '<p><label for="peracrm-client-type">Client type</label></p>';
+    echo '<p><select name="peracrm_client_type" id="peracrm-client-type" class="widefat">';
+    foreach ($type_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($profile['client_type'] ?? '', $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select></p>';
+
+    echo '<p><label for="peracrm-preferred-contact">Preferred contact</label></p>';
+    echo '<p><select name="peracrm_preferred_contact" id="peracrm-preferred-contact" class="widefat">';
+    foreach ($contact_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($profile['preferred_contact'] ?? '', $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select></p>';
+
+    $budget_min = isset($profile['budget_min_usd']) ? $profile['budget_min_usd'] : '';
+    $budget_max = isset($profile['budget_max_usd']) ? $profile['budget_max_usd'] : '';
+
+    echo '<p><label for="peracrm-budget-min">Budget min (USD)</label></p>';
+    echo '<p><input type="number" min="0" step="1" name="peracrm_budget_min_usd" id="peracrm-budget-min" class="widefat" value="' . esc_attr($budget_min) . '" /></p>';
+
+    echo '<p><label for="peracrm-budget-max">Budget max (USD)</label></p>';
+    echo '<p><input type="number" min="0" step="1" name="peracrm_budget_max_usd" id="peracrm-budget-max" class="widefat" value="' . esc_attr($budget_max) . '" /></p>';
+
+    echo '<p><label for="peracrm-phone">Phone</label></p>';
+    echo '<p><input type="text" name="peracrm_phone" id="peracrm-phone" class="widefat" value="' . esc_attr($phone) . '" /></p>';
+
+    echo '<p><label for="peracrm-email">Email</label></p>';
+    echo '<p><input type="email" name="peracrm_email" id="peracrm-email" class="widefat" value="' . esc_attr($email) . '" /></p>';
+
+    echo '<p><button type="submit" class="button button-primary">Save Profile</button></p>';
+    echo '</form>';
+
+    echo '<hr />';
+    echo '<div class="peracrm-quick-actions">';
+    echo '<p><strong>Quick Actions</strong></p>';
+    if ($phone !== '') {
+        $tel_link = 'tel:' . rawurlencode($phone);
+        echo '<p><a class="button" href="' . esc_url($tel_link) . '">' . esc_html('Call') . '</a></p>';
+    }
+    if ($wa_link !== '') {
+        echo '<p><a class="button" href="' . esc_url($wa_link) . '" target="_blank" rel="noopener">' . esc_html('WhatsApp') . '</a></p>';
+    }
+    if ($email !== '') {
+        $mailto_link = 'mailto:' . rawurlencode($email);
+        echo '<p><a class="button" href="' . esc_url($mailto_link) . '">' . esc_html('Email') . '</a></p>';
+    }
+    if ($phone === '' && $wa_link === '' && $email === '') {
+        echo '<p class="peracrm-empty">Add a phone or email to enable quick actions.</p>';
+    }
+    echo '</div>';
+
+    echo '</div>';
+}
+
+function peracrm_render_assigned_advisor_metabox($post)
+{
+    $advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
+        ? (int) peracrm_client_get_assigned_advisor_id($post->ID)
+        : 0;
+
+    $advisor_name = 'Unassigned';
+    if ($advisor_id > 0) {
+        $advisor_user = get_userdata($advisor_id);
+        if ($advisor_user) {
+            $advisor_name = $advisor_user->display_name;
+        }
+    }
+
+    $can_reassign = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+
+    echo '<div class="peracrm-metabox">';
+    echo '<p><strong>Current advisor:</strong> ' . esc_html($advisor_name) . '</p>';
+
+    if (!$can_reassign) {
+        echo '<p>You do not have permission to reassign advisors.</p>';
+        echo '</div>';
+        return;
+    }
+
+    $advisor_options = get_users([
+        'fields' => ['ID', 'display_name'],
+        'capability' => 'edit_crm_clients',
+        'orderby' => 'display_name',
+        'order' => 'ASC',
+    ]);
+
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-form">';
+    wp_nonce_field('peracrm_reassign_client_advisor');
+    echo '<input type="hidden" name="action" value="peracrm_reassign_client_advisor" />';
+    echo '<input type="hidden" name="peracrm_client_id" value="' . esc_attr($post->ID) . '" />';
+    echo '<p><label for="peracrm-assigned-advisor">Advisor</label></p>';
+    echo '<p><select name="peracrm_assigned_advisor" id="peracrm-assigned-advisor" class="widefat">';
+    printf(
+        '<option value="0"%s>%s</option>',
+        selected($advisor_id, 0, false),
+        esc_html('Unassigned')
+    );
+    foreach ($advisor_options as $advisor) {
+        printf(
+            '<option value="%1$d"%2$s>%3$s</option>',
+            (int) $advisor->ID,
+            selected($advisor_id, (int) $advisor->ID, false),
+            esc_html($advisor->display_name)
+        );
+    }
+    echo '</select></p>';
+    echo '<p><button type="submit" class="button">Reassign</button></p>';
+    echo '</form>';
+    echo '</div>';
 }
 
 function peracrm_render_notes_metabox($post)

@@ -58,3 +58,123 @@ function peracrm_client_get_assigned_advisor_id($client_id)
 
     return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
 }
+
+function peracrm_client_get_profile($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return [
+            'status' => '',
+            'client_type' => '',
+            'preferred_contact' => '',
+            'budget_min_usd' => '',
+            'budget_max_usd' => '',
+            'phone' => '',
+            'email' => '',
+        ];
+    }
+
+    return [
+        'status' => get_post_meta($client_id, '_peracrm_status', true),
+        'client_type' => get_post_meta($client_id, '_peracrm_client_type', true),
+        'preferred_contact' => get_post_meta($client_id, '_peracrm_preferred_contact', true),
+        'budget_min_usd' => get_post_meta($client_id, '_peracrm_budget_min_usd', true),
+        'budget_max_usd' => get_post_meta($client_id, '_peracrm_budget_max_usd', true),
+        'phone' => get_post_meta($client_id, '_peracrm_phone', true),
+        'email' => get_post_meta($client_id, '_peracrm_email', true),
+    ];
+}
+
+function peracrm_client_update_profile($client_id, $data)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return false;
+    }
+
+    $allowed_status = ['enquiry', 'active', 'dormant', 'closed'];
+    $allowed_types = ['citizenship', 'investor', 'lifestyle'];
+    $allowed_contact = ['phone', 'whatsapp', 'email'];
+
+    $status = isset($data['status']) ? sanitize_key($data['status']) : '';
+    if (!in_array($status, $allowed_status, true)) {
+        $status = '';
+    }
+
+    $client_type = isset($data['client_type']) ? sanitize_key($data['client_type']) : '';
+    if (!in_array($client_type, $allowed_types, true)) {
+        $client_type = '';
+    }
+
+    $preferred_contact = isset($data['preferred_contact']) ? sanitize_key($data['preferred_contact']) : '';
+    if (!in_array($preferred_contact, $allowed_contact, true)) {
+        $preferred_contact = '';
+    }
+
+    $phone = isset($data['phone']) ? preg_replace('/[^0-9+]/', '', $data['phone']) : '';
+    $email = isset($data['email']) ? sanitize_email($data['email']) : '';
+
+    $min = null;
+    if (array_key_exists('budget_min_usd', $data)) {
+        $min = peracrm_client_profile_sanitize_budget($data['budget_min_usd']);
+    }
+
+    $max = null;
+    if (array_key_exists('budget_max_usd', $data)) {
+        $max = peracrm_client_profile_sanitize_budget($data['budget_max_usd']);
+    }
+
+    if (null === $min && null !== $max) {
+        $min = 0;
+    }
+
+    if (null !== $min && null !== $max && $max < $min) {
+        $swap = $min;
+        $min = $max;
+        $max = $swap;
+    }
+
+    $fields = [
+        '_peracrm_status' => $status,
+        '_peracrm_client_type' => $client_type,
+        '_peracrm_preferred_contact' => $preferred_contact,
+        '_peracrm_phone' => $phone,
+        '_peracrm_email' => $email,
+    ];
+
+    foreach ($fields as $meta_key => $value) {
+        if ($value === '' || null === $value) {
+            delete_post_meta($client_id, $meta_key);
+        } else {
+            update_post_meta($client_id, $meta_key, $value);
+        }
+    }
+
+    if (null !== $min) {
+        update_post_meta($client_id, '_peracrm_budget_min_usd', (int) $min);
+    } else {
+        delete_post_meta($client_id, '_peracrm_budget_min_usd');
+    }
+
+    if (null !== $max) {
+        update_post_meta($client_id, '_peracrm_budget_max_usd', (int) $max);
+    } else {
+        delete_post_meta($client_id, '_peracrm_budget_max_usd');
+    }
+
+    return true;
+}
+
+function peracrm_client_profile_sanitize_budget($value)
+{
+    if ($value === '' || $value === null) {
+        return null;
+    }
+
+    $value = (int) $value;
+    if ($value < 0) {
+        $value = 0;
+    }
+
+    return $value;
+}
