@@ -118,13 +118,16 @@ function peracrm_client_update_profile($client_id, $data)
     }
 
     $phone = isset($data['phone']) ? preg_replace('/[^0-9+]/', '', $data['phone']) : '';
-    if (strlen($phone) > 20) {
-        $phone = substr($phone, 0, 20);
+    if (strlen($phone) > 30) {
+        $phone = substr($phone, 0, 30);
     }
 
     $email = isset($data['email']) ? sanitize_email($data['email']) : '';
-    if ($email !== '' && (!is_email($email) || strlen($email) > 254)) {
+    if ($email !== '' && !is_email($email)) {
         $email = '';
+    }
+    if (strlen($email) > 254) {
+        $email = substr($email, 0, 254);
     }
 
     $min = null;
