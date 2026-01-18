@@ -32,13 +32,13 @@ function pera_handle_citizenship_enquiry() {
       ! isset( $_POST['sr_nonce'] ) ||
       ! wp_verify_nonce( $_POST['sr_nonce'], 'pera_seller_landlord_enquiry' )
     ) {
-      wp_die( 'Security check failed', 'Error', array( 'response' => 403 ) );
+      return;
     }
 
     // Honeypot check – bots fill this, humans don't
     if ( ! empty( $_POST['sr_company'] ?? '' ) ) {
       // Fail silently or hard-stop
-      wp_die( 'Spam detected', 403 );
+      return;
     }
 
 
@@ -191,7 +191,7 @@ function pera_handle_citizenship_enquiry() {
       ! isset( $_POST['pera_citizenship_nonce'] ) ||
       ! wp_verify_nonce( $_POST['pera_citizenship_nonce'], 'pera_citizenship_enquiry' )
     ) {
-      wp_die( 'Security check failed', 'Error', array( 'response' => 403 ) );
+      return;
     }
 
     $name  = isset( $_POST['name'] )  ? sanitize_text_field( wp_unslash( $_POST['name'] ) )  : '';
