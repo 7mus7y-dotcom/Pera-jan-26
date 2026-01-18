@@ -59,6 +59,32 @@
     margin: 12px 0 20px;
 }
 
+.peracrm-pipeline-views {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.peracrm-pipeline-views__form {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    margin: 0;
+}
+
+.peracrm-pipeline-views__label {
+    font-weight: 600;
+}
+
+.peracrm-pipeline-hide-empty {
+    align-items: center;
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 12px;
+}
+
 .peracrm-pipeline-board {
     display: grid;
     gap: 16px;
@@ -81,6 +107,42 @@
 .peracrm-pipeline-card__title {
     font-weight: 600;
     margin-bottom: 8px;
+}
+
+.peracrm-pipeline-card__hints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.peracrm-pipeline-hint {
+    background: #f0f0f1;
+    border-radius: 999px;
+    color: #1d2327;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+}
+
+.peracrm-pipeline-hint--overdue {
+    background: #f8d7da;
+    color: #842029;
+}
+
+.peracrm-pipeline-hint--due-soon {
+    background: #fff3cd;
+    color: #664d03;
+}
+
+.peracrm-pipeline-hint--no-activity {
+    background: #e2e3e5;
+    color: #41464b;
+}
+
+.peracrm-pipeline-hint--new-enquiry {
+    background: #d1e7dd;
+    color: #0f5132;
 }
 
 .peracrm-pipeline-card__meta {
