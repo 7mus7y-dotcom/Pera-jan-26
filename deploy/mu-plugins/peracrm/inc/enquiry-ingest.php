@@ -7,6 +7,10 @@ if (!defined('ABSPATH')) {
 function peracrm_normalize_email($email)
 {
     $email = strtolower(trim((string) $email));
+    $email = sanitize_email($email);
+    if ($email === '' || !is_email($email)) {
+        return '';
+    }
 
     return $email;
 }
@@ -61,6 +65,8 @@ function peracrm_find_client_by_email($email)
         'posts_per_page' => 1,
         'post_status' => 'any',
         'fields' => 'ids',
+        'orderby' => 'ID',
+        'order' => 'ASC',
         'meta_query' => $meta_query,
     ]);
 
@@ -103,8 +109,8 @@ function peracrm_update_client_from_enquiry($client_id, $email, $name, $phone, $
     if ($email !== '') {
         $normalized = peracrm_normalize_email($email);
         if ($normalized !== '') {
-            peracrm_enquiry_update_meta_if_empty($client_id, 'primary_email_normalized', $normalized);
-            peracrm_enquiry_update_meta_if_empty($client_id, 'crm_primary_email_normalized', $normalized);
+            update_post_meta($client_id, 'primary_email_normalized', $normalized);
+            update_post_meta($client_id, 'crm_primary_email_normalized', $normalized);
         }
 
         if (!peracrm_enquiry_has_email($client_id)) {
@@ -479,7 +485,7 @@ function peracrm_ingest_enquiry(array $payload)
         }
     }
 
-    if ($property_id > 0 && function_exists('peracrm_client_property_link')) {
+    if ($property_id > 0 && function_exists('peracrm_client_property_link') && function_exists('peracrm_table')) {
         $property = get_post($property_id);
         $table = peracrm_table('crm_client_property');
         if ($property && 'property' === $property->post_type && 'publish' === $property->post_status
