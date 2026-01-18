@@ -155,6 +155,102 @@ function peracrm_admin_update_client_linked_user_id($client_id, $user_id)
     return true;
 }
 
+function peracrm_admin_client_table_has_linked_user_column()
+{
+    static $has_column = null;
+
+    if (null !== $has_column) {
+        return $has_column;
+    }
+
+    global $wpdb;
+
+    $table = peracrm_table('crm_client');
+    $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+    if (!$table_exists) {
+        $has_column = false;
+        return $has_column;
+    }
+
+    $column = $wpdb->get_col("SHOW COLUMNS FROM {$table} LIKE 'linked_user_id'");
+    $has_column = !empty($column);
+
+    return $has_column;
+}
+
+function peracrm_admin_get_client_linked_user_id($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    if (peracrm_admin_client_table_has_linked_user_column()) {
+        global $wpdb;
+        $table = peracrm_table('crm_client');
+        $linked_user_id = (int) $wpdb->get_var(
+            $wpdb->prepare("SELECT linked_user_id FROM {$table} WHERE id = %d", $client_id)
+        );
+        if ($linked_user_id > 0) {
+            return $linked_user_id;
+        }
+    }
+
+    return (int) get_post_meta($client_id, 'linked_user_id', true);
+}
+
+function peracrm_admin_find_linked_user_id($client_id)
+{
+    $linked_user_id = peracrm_admin_get_client_linked_user_id($client_id);
+    if ($linked_user_id > 0) {
+        return $linked_user_id;
+    }
+
+    $users = get_users([
+        'meta_key' => 'crm_client_id',
+        'meta_value' => (int) $client_id,
+        'number' => 1,
+        'fields' => 'ids',
+    ]);
+
+    if (empty($users)) {
+        return 0;
+    }
+
+    return (int) $users[0];
+}
+
+function peracrm_admin_update_client_linked_user_id($client_id, $user_id)
+{
+    $client_id = (int) $client_id;
+    $user_id = (int) $user_id;
+    if ($client_id <= 0) {
+        return false;
+    }
+
+    if (peracrm_admin_client_table_has_linked_user_column()) {
+        global $wpdb;
+        $table = peracrm_table('crm_client');
+        $result = $wpdb->update(
+            $table,
+            ['linked_user_id' => $user_id > 0 ? $user_id : null],
+            ['id' => $client_id],
+            ['%d'],
+            ['%d']
+        );
+        if (false !== $result) {
+            return true;
+        }
+    }
+
+    if ($user_id > 0) {
+        return (bool) update_post_meta($client_id, 'linked_user_id', $user_id);
+    }
+
+    delete_post_meta($client_id, 'linked_user_id');
+    return true;
+}
+
 function peracrm_admin_parse_datetime($raw_datetime)
 {
     $raw_datetime = sanitize_text_field($raw_datetime);
