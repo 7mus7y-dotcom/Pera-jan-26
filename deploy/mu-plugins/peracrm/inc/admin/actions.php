@@ -16,12 +16,12 @@ function peracrm_admin_user_can_manage_all_reminders()
 
 function peracrm_admin_actor_can_manage_reminder($reminder, $actor_id)
 {
-    if (peracrm_admin_user_can_manage_all_reminders()) {
+    $actor_id = (int) $actor_id;
+    if ($actor_id > 0 && (user_can($actor_id, 'manage_options') || user_can($actor_id, 'edit_others_crm_clients'))) {
         return true;
     }
 
     $advisor_id = isset($reminder['advisor_user_id']) ? (int) $reminder['advisor_user_id'] : 0;
-    $actor_id = (int) $actor_id;
 
     return $advisor_id > 0 && $advisor_id === $actor_id;
 }
