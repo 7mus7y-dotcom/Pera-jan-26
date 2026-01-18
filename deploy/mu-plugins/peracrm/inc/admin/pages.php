@@ -228,6 +228,7 @@ function peracrm_render_my_reminders_page()
             wp_nonce_field('peracrm_update_reminder_status');
             echo '<input type="hidden" name="action" value="peracrm_update_reminder_status" />';
             echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
+            echo '<input type="hidden" name="peracrm_client_id" value="' . esc_attr($client_id) . '" />';
             echo '<input type="hidden" name="peracrm_status" value="done" />';
             echo '<input type="hidden" name="peracrm_redirect" value="' . esc_url($current_url) . '" />';
             echo '<button type="submit" class="button">Mark done</button>';
@@ -236,6 +237,7 @@ function peracrm_render_my_reminders_page()
             wp_nonce_field('peracrm_update_reminder_status');
             echo '<input type="hidden" name="action" value="peracrm_update_reminder_status" />';
             echo '<input type="hidden" name="peracrm_reminder_id" value="' . esc_attr($reminder['id']) . '" />';
+            echo '<input type="hidden" name="peracrm_client_id" value="' . esc_attr($client_id) . '" />';
             echo '<input type="hidden" name="peracrm_status" value="dismissed" />';
             echo '<input type="hidden" name="peracrm_redirect" value="' . esc_url($current_url) . '" />';
             echo '<button type="submit" class="button">Dismiss</button>';
