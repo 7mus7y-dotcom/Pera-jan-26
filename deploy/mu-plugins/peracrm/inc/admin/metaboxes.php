@@ -206,7 +206,7 @@ function peracrm_render_client_profile_metabox($post)
         echo '<p><a class="button" href="' . esc_url($mailto_link) . '">' . esc_html('Email') . '</a></p>';
     }
     if ($phone === '' && $wa_link === '' && $email === '') {
-        echo '<p class="peracrm-empty">Add a phone or email to enable quick actions.</p>';
+        echo '<p class="peracrm-empty">' . esc_html('Add a phone or email to enable quick actions.') . '</p>';
     }
     echo '</div>';
 
@@ -227,7 +227,8 @@ function peracrm_render_assigned_advisor_metabox($post)
         }
     }
 
-    $can_reassign = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+    $can_reassign = current_user_can('edit_post', $post->ID)
+        && (current_user_can('manage_options') || current_user_can('peracrm_manage_assignments'));
 
     echo '<div class="peracrm-metabox">';
     echo '<p><strong>Current advisor:</strong> ' . esc_html($advisor_name) . '</p>';

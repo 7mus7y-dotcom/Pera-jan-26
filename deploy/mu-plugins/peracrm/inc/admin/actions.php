@@ -429,24 +429,15 @@ function peracrm_handle_reassign_client_advisor()
     }
 
     $new_advisor = isset($_POST['peracrm_assigned_advisor']) ? absint($_POST['peracrm_assigned_advisor']) : 0;
+    if ($new_advisor > 0 && !peracrm_user_is_valid_advisor($new_advisor)) {
+        wp_die('Invalid advisor selection.');
+    }
+
     $old_advisor = function_exists('peracrm_client_get_assigned_advisor_id')
         ? (int) peracrm_client_get_assigned_advisor_id($client_id)
         : 0;
 
-    $has_assigned_key = metadata_exists('post', $client_id, 'assigned_advisor_user_id');
-    $has_crm_key = metadata_exists('post', $client_id, 'crm_assigned_advisor');
-
-    if ($has_assigned_key && $has_crm_key) {
-        $update_keys = ['assigned_advisor_user_id', 'crm_assigned_advisor'];
-    } elseif ($has_assigned_key) {
-        $update_keys = ['assigned_advisor_user_id'];
-    } elseif ($has_crm_key) {
-        $update_keys = ['crm_assigned_advisor'];
-    } else {
-        $update_keys = ['assigned_advisor_user_id'];
-    }
-
-    foreach ($update_keys as $meta_key) {
+    foreach (['assigned_advisor_user_id', 'crm_assigned_advisor'] as $meta_key) {
         if ($new_advisor > 0) {
             update_post_meta($client_id, $meta_key, $new_advisor);
         } else {
