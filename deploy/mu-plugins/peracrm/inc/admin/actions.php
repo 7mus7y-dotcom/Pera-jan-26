@@ -225,12 +225,7 @@ function peracrm_admin_get_assigned_advisor_id_for_client($client_id)
         return (int) peracrm_client_get_assigned_advisor_id($client_id);
     }
 
-    $assigned = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
-    if ($assigned > 0) {
-        return $assigned;
-    }
-
-    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+    return 0;
 }
 
 function peracrm_handle_add_note()
@@ -248,7 +243,7 @@ function peracrm_handle_add_note()
     }
 
     $assigned_advisor_id = peracrm_admin_get_assigned_advisor_id_for_client($client_id);
-    $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+    $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_all_reminders');
     $is_assigned_advisor = $assigned_advisor_id > 0 && $assigned_advisor_id === get_current_user_id();
     if (!$can_override && !$is_assigned_advisor) {
         wp_die('Unauthorized');
@@ -506,8 +501,8 @@ function peracrm_handle_add_reminder()
     $assigned_advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
         ? (int) peracrm_client_get_assigned_advisor_id($client_id)
         : 0;
-    $is_admin = current_user_can('manage_options');
-    if (!$is_admin && $assigned_advisor_id !== $current_user_id) {
+    $can_manage = current_user_can('manage_options') || current_user_can('peracrm_manage_all_reminders');
+    if (!$can_manage && $assigned_advisor_id !== $current_user_id) {
         wp_die('Unauthorized');
     }
 
@@ -522,7 +517,7 @@ function peracrm_handle_add_reminder()
     $note = substr($note, 0, 5000);
     $assigned_advisor = function_exists('peracrm_client_get_assigned_advisor_id')
         ? (int) peracrm_client_get_assigned_advisor_id($client_id)
-        : (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+        : 0;
     if ($assigned_advisor <= 0) {
         $assigned_advisor = get_current_user_id();
     }

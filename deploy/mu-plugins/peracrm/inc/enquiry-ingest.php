@@ -298,12 +298,11 @@ function peracrm_enquiry_get_assigned_advisor_id($client_id)
         return 0;
     }
 
-    $advisor_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
-    if ($advisor_id > 0) {
-        return $advisor_id;
+    if (function_exists('peracrm_client_get_assigned_advisor_id')) {
+        return (int) peracrm_client_get_assigned_advisor_id($client_id);
     }
 
-    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+    return 0;
 }
 
 function peracrm_enquiry_assign_advisor_if_missing($client_id)
