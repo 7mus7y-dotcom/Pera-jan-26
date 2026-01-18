@@ -39,3 +39,22 @@ function peracrm_json_decode($json)
 
     return $decoded;
 }
+
+function peracrm_client_get_assigned_advisor_id($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    if (function_exists('peracrm_enquiry_get_assigned_advisor_id')) {
+        return (int) peracrm_enquiry_get_assigned_advisor_id($client_id);
+    }
+
+    $advisor_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
+    if ($advisor_id > 0) {
+        return $advisor_id;
+    }
+
+    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+}

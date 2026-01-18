@@ -4,50 +4,37 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function peracrm_admin_work_queue_assigned_meta_key()
+function peracrm_admin_work_queue_assigned_meta_keys()
 {
-    static $key = null;
-    if (null !== $key) {
-        return $key;
-    }
-
-    global $wpdb;
-    $candidates = ['assigned_advisor_user_id', 'crm_assigned_advisor'];
-    foreach ($candidates as $candidate) {
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_id FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1",
-            $candidate
-        ));
-        if ($exists) {
-            $key = $candidate;
-            return $key;
-        }
-    }
-
-    $key = 'assigned_advisor_user_id';
-    return $key;
+    return ['assigned_advisor_user_id', 'crm_assigned_advisor'];
 }
 
 function peracrm_admin_work_queue_get_assigned_advisor_id($client_id)
 {
-    if (function_exists('peracrm_enquiry_get_assigned_advisor_id')) {
-        return (int) peracrm_enquiry_get_assigned_advisor_id($client_id);
+    if (function_exists('peracrm_client_get_assigned_advisor_id')) {
+        return (int) peracrm_client_get_assigned_advisor_id($client_id);
     }
 
-    $key = peracrm_admin_work_queue_assigned_meta_key();
-    return (int) get_post_meta($client_id, $key, true);
+    $advisor_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
+    if ($advisor_id > 0) {
+        return $advisor_id;
+    }
+
+    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
 }
 
-function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $meta_key, $has_activity_table, $has_reminders_table)
+function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $has_activity_table, $has_reminders_table)
 {
     global $wpdb;
 
     $bucket = sanitize_key($bucket);
     $advisor_id = (int) $advisor_id;
-    $meta_key = sanitize_key($meta_key);
+    if ('unassigned' === $bucket) {
+        $advisor_id = 0;
+    }
 
-    $needs_activity = in_array($bucket, ['cold', 'hot_no_tasks', 'none'], true);
-    $needs_reminders = in_array($bucket, ['at_risk', 'due_soon', 'cold', 'hot_no_tasks', 'none'], true);
+    $needs_activity = in_array($bucket, ['cold', 'hot_no_tasks'], true);
+    $needs_reminders = in_array($bucket, ['at_risk', 'due_soon', 'cold', 'hot_no_tasks'], true);
 
     if ($needs_activity && !$has_activity_table) {
         return [];
@@ -58,19 +45,26 @@ function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $meta_
     }
 
     $posts_table = $wpdb->posts;
+    $meta_table = $wpdb->postmeta;
     $joins = '';
     $where = [
         "p.post_type = 'crm_client'",
         "p.post_status <> 'trash'",
     ];
-    $params = [];
+
+    $meta_keys = peracrm_admin_work_queue_assigned_meta_keys();
+    $meta_placeholders = implode(',', array_fill(0, count($meta_keys), '%s'));
 
     if ($advisor_id > 0) {
-        $meta_table = $wpdb->postmeta;
-        $joins .= " INNER JOIN {$meta_table} AS pm ON pm.post_id = p.ID AND pm.meta_key = %s";
-        $where[] = 'pm.meta_value = %d';
-        $params[] = $meta_key;
-        $params[] = $advisor_id;
+        $where[] = $wpdb->prepare(
+            "EXISTS (SELECT 1 FROM {$meta_table} AS pm WHERE pm.post_id = p.ID AND pm.meta_key IN ({$meta_placeholders}) AND pm.meta_value = %d)",
+            array_merge($meta_keys, [$advisor_id])
+        );
+    } elseif ('unassigned' === $bucket) {
+        $where[] = $wpdb->prepare(
+            "NOT EXISTS (SELECT 1 FROM {$meta_table} AS pm WHERE pm.post_id = p.ID AND pm.meta_key IN ({$meta_placeholders}) AND CAST(pm.meta_value AS UNSIGNED) > 0)",
+            $meta_keys
+        );
     }
 
     if ('at_risk' === $bucket) {
@@ -101,7 +95,7 @@ function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $meta_
         $seven_days = wp_date('Y-m-d H:i:s', $now_ts - DAY_IN_SECONDS * 7);
         $now_mysql = wp_date('Y-m-d H:i:s', $now_ts);
         $activity_sub = "SELECT client_id, MAX(created_at) AS last_activity_at FROM {$activity_table} GROUP BY client_id";
-        $reminders_sub = $wpdb->prepare(
+        $health_reminders_sub = $wpdb->prepare(
             "(SELECT client_id,
                      SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) AS open_count,
                      SUM(CASE WHEN status = %s AND due_at < %s THEN 1 ELSE 0 END) AS overdue_count
@@ -112,10 +106,30 @@ function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $meta_
             $now_mysql
         );
         $joins .= " LEFT JOIN ({$activity_sub}) AS a ON a.client_id = p.ID";
-        $joins .= " LEFT JOIN {$reminders_sub} AS r ON r.client_id = p.ID";
+        $joins .= " LEFT JOIN {$health_reminders_sub} AS r ON r.client_id = p.ID";
+
+        $scope_reminders_sub = $health_reminders_sub;
+        if ($advisor_id > 0) {
+            $scope_reminders_sub = $wpdb->prepare(
+                "(SELECT client_id,
+                         SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) AS open_count,
+                         SUM(CASE WHEN status = %s AND due_at < %s THEN 1 ELSE 0 END) AS overdue_count
+                  FROM {$reminders_table}
+                  WHERE advisor_user_id = %d
+                  GROUP BY client_id)",
+                'pending',
+                'pending',
+                $now_mysql,
+                $advisor_id
+            );
+        }
+        $joins .= " LEFT JOIN {$scope_reminders_sub} AS rs ON rs.client_id = p.ID";
+
         $where[] = $wpdb->prepare('a.last_activity_at >= %s', $seven_days);
-        $where[] = 'COALESCE(r.open_count, 0) = 0';
+        $where[] = 'COALESCE(r.open_count, 0) > 0';
         $where[] = 'COALESCE(r.overdue_count, 0) = 0';
+        $where[] = 'COALESCE(rs.open_count, 0) = 0';
+        $where[] = 'COALESCE(rs.overdue_count, 0) = 0';
     } elseif ('cold' === $bucket) {
         $activity_table = peracrm_table('crm_activity');
         $now_ts = current_time('timestamp');
@@ -123,32 +137,8 @@ function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $meta_
         $activity_sub = "SELECT client_id, MAX(created_at) AS last_activity_at FROM {$activity_table} GROUP BY client_id";
         $joins .= " LEFT JOIN ({$activity_sub}) AS a ON a.client_id = p.ID";
 
-        if ($has_reminders_table) {
-            $reminders_table = peracrm_table('crm_reminders');
-            $now_mysql = wp_date('Y-m-d H:i:s', $now_ts);
-            $reminders_sub = $wpdb->prepare(
-                "(SELECT client_id,
-                         SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) AS open_count,
-                         SUM(CASE WHEN status = %s AND due_at < %s THEN 1 ELSE 0 END) AS overdue_count
-                  FROM {$reminders_table}
-                  GROUP BY client_id)",
-                'pending',
-                'pending',
-                $now_mysql
-            );
-            $joins .= " LEFT JOIN {$reminders_sub} AS r ON r.client_id = p.ID";
-            $where[] = $wpdb->prepare(
-                '(a.last_activity_at < %s OR (a.last_activity_at IS NULL AND COALESCE(r.open_count, 0) > 0 AND COALESCE(r.overdue_count, 0) = 0))',
-                $thirty_days
-            );
-        } else {
-            $where[] = $wpdb->prepare('a.last_activity_at < %s', $thirty_days);
-        }
-    } elseif ('none' === $bucket) {
-        $activity_table = peracrm_table('crm_activity');
         $reminders_table = peracrm_table('crm_reminders');
-        $now_mysql = current_time('mysql');
-        $activity_sub = "SELECT client_id, MAX(created_at) AS last_activity_at FROM {$activity_table} GROUP BY client_id";
+        $now_mysql = wp_date('Y-m-d H:i:s', $now_ts);
         $reminders_sub = $wpdb->prepare(
             "(SELECT client_id,
                      SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) AS open_count,
@@ -159,17 +149,14 @@ function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $meta_
             'pending',
             $now_mysql
         );
-        $joins .= " LEFT JOIN ({$activity_sub}) AS a ON a.client_id = p.ID";
         $joins .= " LEFT JOIN {$reminders_sub} AS r ON r.client_id = p.ID";
-        $where[] = 'a.last_activity_at IS NULL';
-        $where[] = 'COALESCE(r.open_count, 0) = 0';
-        $where[] = 'COALESCE(r.overdue_count, 0) = 0';
+        $where[] = $wpdb->prepare(
+            '(a.last_activity_at < %s OR (a.last_activity_at IS NULL AND COALESCE(r.open_count, 0) > 0 AND COALESCE(r.overdue_count, 0) = 0))',
+            $thirty_days
+        );
     }
 
     $sql = "SELECT DISTINCT p.ID FROM {$posts_table} AS p {$joins} WHERE " . implode(' AND ', $where);
-    if (!empty($params)) {
-        $sql = $wpdb->prepare($sql, $params);
-    }
 
     $client_ids = $wpdb->get_col($sql);
     return array_values(array_map('intval', (array) $client_ids));
@@ -194,10 +181,15 @@ function peracrm_render_work_queue_page()
         'due_soon' => 'Due soon',
         'cold' => 'Cold',
         'hot_no_tasks' => 'Hot / no tasks',
-        'none' => 'None',
     ];
+    if ($is_admin) {
+        $allowed_buckets['unassigned'] = 'Unassigned';
+    }
     if (!isset($allowed_buckets[$bucket])) {
         $bucket = 'at_risk';
+    }
+    if ('unassigned' === $bucket && $is_admin) {
+        $advisor_id = 0;
     }
 
     $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
@@ -224,11 +216,9 @@ function peracrm_render_work_queue_page()
         echo '</p></div>';
     }
 
-    $meta_key = peracrm_admin_work_queue_assigned_meta_key();
     $bucket_client_ids = peracrm_admin_work_queue_bucket_client_ids(
         $bucket,
         $advisor_id,
-        $meta_key,
         $has_activity_table,
         $has_reminders_table
     );
@@ -265,15 +255,12 @@ function peracrm_render_work_queue_page()
     }
 
     $reminder_scope = $advisor_id > 0 ? $advisor_id : null;
-    $open_counts = function_exists('peracrm_reminders_count_open_by_client_ids')
-        ? peracrm_reminders_count_open_by_client_ids($client_ids, $reminder_scope)
-        : [];
-    $overdue_counts = function_exists('peracrm_reminders_count_overdue_by_client_ids')
-        ? peracrm_reminders_count_overdue_by_client_ids($client_ids, $reminder_scope)
-        : [];
-    $next_due_map = function_exists('peracrm_reminders_next_due_by_client_ids')
-        ? peracrm_reminders_next_due_by_client_ids($client_ids, $reminder_scope)
-        : [];
+    $reminder_counts = function_exists('peracrm_reminders_counts_by_client_ids')
+        ? peracrm_reminders_counts_by_client_ids($client_ids, $reminder_scope)
+        : ['open_count' => [], 'overdue_count' => [], 'next_due' => []];
+    $open_counts = isset($reminder_counts['open_count']) ? $reminder_counts['open_count'] : [];
+    $overdue_counts = isset($reminder_counts['overdue_count']) ? $reminder_counts['overdue_count'] : [];
+    $next_due_map = isset($reminder_counts['next_due']) ? $reminder_counts['next_due'] : [];
 
     $advisor_map = [];
     if ($is_admin && !empty($client_ids)) {
@@ -299,9 +286,11 @@ function peracrm_render_work_queue_page()
     $base_params = [
         'post_type' => 'crm_client',
         'page' => 'peracrm-work-queue',
-        'advisor' => $advisor_id,
         's' => $search,
     ];
+    if ($is_admin) {
+        $base_params['advisor'] = $advisor_id;
+    }
 
     echo '<h2 class="nav-tab-wrapper">';
     foreach ($allowed_buckets as $key => $label) {
