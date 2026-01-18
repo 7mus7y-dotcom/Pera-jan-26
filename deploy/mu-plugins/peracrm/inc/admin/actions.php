@@ -344,6 +344,140 @@ function peracrm_handle_unlink_user()
     peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'unlink_success');
 }
 
+function peracrm_admin_user_can_reassign()
+{
+    return current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+}
+
+function peracrm_handle_save_client_profile()
+{
+    if (!is_user_logged_in()) {
+        wp_die('You must be logged in to update CRM profiles.');
+    }
+
+    $client_id = isset($_POST['peracrm_client_id']) ? absint($_POST['peracrm_client_id']) : 0;
+    if ($client_id <= 0) {
+        wp_die('Invalid client.');
+    }
+
+    check_admin_referer('peracrm_save_client_profile');
+
+    if (!current_user_can('edit_post', $client_id)) {
+        wp_die('You do not have permission to edit this client.');
+    }
+
+    $status = isset($_POST['peracrm_status']) ? sanitize_key(wp_unslash($_POST['peracrm_status'])) : '';
+    $client_type = isset($_POST['peracrm_client_type']) ? sanitize_key(wp_unslash($_POST['peracrm_client_type'])) : '';
+    $preferred_contact = isset($_POST['peracrm_preferred_contact']) ? sanitize_key(wp_unslash($_POST['peracrm_preferred_contact'])) : '';
+
+    $budget_min = isset($_POST['peracrm_budget_min_usd']) ? wp_unslash($_POST['peracrm_budget_min_usd']) : '';
+    $budget_max = isset($_POST['peracrm_budget_max_usd']) ? wp_unslash($_POST['peracrm_budget_max_usd']) : '';
+
+    $phone_raw = isset($_POST['peracrm_phone']) ? sanitize_text_field(wp_unslash($_POST['peracrm_phone'])) : '';
+    $phone = preg_replace('/[^0-9+]/', '', $phone_raw);
+
+    $email_raw = isset($_POST['peracrm_email']) ? sanitize_text_field(wp_unslash($_POST['peracrm_email'])) : '';
+    $email = sanitize_email($email_raw);
+
+    $data = [
+        'status' => $status,
+        'client_type' => $client_type,
+        'preferred_contact' => $preferred_contact,
+        'budget_min_usd' => $budget_min,
+        'budget_max_usd' => $budget_max,
+        'phone' => $phone,
+        'email' => $email,
+    ];
+
+    $success = function_exists('peracrm_client_update_profile')
+        ? peracrm_client_update_profile($client_id, $data)
+        : false;
+
+    $redirect = wp_get_referer();
+    if (!$redirect) {
+        $redirect = add_query_arg(
+            [
+                'post' => $client_id,
+                'action' => 'edit',
+            ],
+            admin_url('post.php')
+        );
+    }
+
+    if (!$success) {
+        peracrm_admin_redirect_with_notice($redirect, 'profile_failed');
+    }
+
+    peracrm_admin_redirect_with_notice($redirect, 'profile_saved');
+}
+
+function peracrm_handle_reassign_client_advisor()
+{
+    if (!is_user_logged_in()) {
+        wp_die('You must be logged in to reassign advisors.');
+    }
+
+    $client_id = isset($_POST['peracrm_client_id']) ? absint($_POST['peracrm_client_id']) : 0;
+    if ($client_id <= 0) {
+        wp_die('Invalid client.');
+    }
+
+    check_admin_referer('peracrm_reassign_client_advisor');
+
+    if (!current_user_can('edit_post', $client_id) || !peracrm_admin_user_can_reassign()) {
+        wp_die('You do not have permission to reassign this client.');
+    }
+
+    $new_advisor = isset($_POST['peracrm_assigned_advisor']) ? absint($_POST['peracrm_assigned_advisor']) : 0;
+    $old_advisor = function_exists('peracrm_client_get_assigned_advisor_id')
+        ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+        : 0;
+
+    $has_assigned_key = metadata_exists('post', $client_id, 'assigned_advisor_user_id');
+    $has_crm_key = metadata_exists('post', $client_id, 'crm_assigned_advisor');
+
+    if ($has_assigned_key && $has_crm_key) {
+        $update_keys = ['assigned_advisor_user_id', 'crm_assigned_advisor'];
+    } elseif ($has_assigned_key) {
+        $update_keys = ['assigned_advisor_user_id'];
+    } elseif ($has_crm_key) {
+        $update_keys = ['crm_assigned_advisor'];
+    } else {
+        $update_keys = ['assigned_advisor_user_id'];
+    }
+
+    foreach ($update_keys as $meta_key) {
+        if ($new_advisor > 0) {
+            update_post_meta($client_id, $meta_key, $new_advisor);
+        } else {
+            delete_post_meta($client_id, $meta_key);
+        }
+    }
+
+    if ($new_advisor !== $old_advisor) {
+        $can_log = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+        if ($can_log && function_exists('peracrm_log_event')) {
+            peracrm_log_event($client_id, 'advisor_reassigned', [
+                'from' => $old_advisor,
+                'to' => $new_advisor,
+            ]);
+        }
+    }
+
+    $redirect = wp_get_referer();
+    if (!$redirect) {
+        $redirect = add_query_arg(
+            [
+                'post' => $client_id,
+                'action' => 'edit',
+            ],
+            admin_url('post.php')
+        );
+    }
+
+    peracrm_admin_redirect_with_notice($redirect, 'advisor_reassigned');
+}
+
 function peracrm_handle_add_reminder()
 {
     if (!is_user_logged_in() || !peracrm_admin_user_can_manage()) {
@@ -505,6 +639,9 @@ function peracrm_admin_notices()
         'user_already_linked' => ['error', 'That user is already linked to another CRM client.'],
         'client_already_linked' => ['error', 'This CRM client is already linked to another user.'],
         'unlink_missing' => ['error', 'This CRM client does not have a linked user.'],
+        'profile_saved' => ['success', 'Client profile updated.'],
+        'profile_failed' => ['error', 'Unable to update client profile.'],
+        'advisor_reassigned' => ['success', 'Advisor reassigned.'],
     ];
 
     if (!isset($messages[$notice])) {
