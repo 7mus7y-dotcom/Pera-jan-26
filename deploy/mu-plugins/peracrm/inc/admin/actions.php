@@ -92,9 +92,12 @@ function peracrm_admin_get_client_linked_user_id($client_id)
     if (peracrm_admin_client_table_has_linked_user_column()) {
         global $wpdb;
         $table = peracrm_table('crm_client');
-        return (int) $wpdb->get_var(
+        $row = $wpdb->get_row(
             $wpdb->prepare("SELECT linked_user_id FROM {$table} WHERE id = %d", $client_id)
         );
+        if (null !== $row) {
+            return (int) $row->linked_user_id;
+        }
     }
 
     return (int) get_post_meta($client_id, 'linked_user_id', true);
@@ -188,10 +191,12 @@ function peracrm_admin_get_client_linked_user_id($client_id)
     if (peracrm_admin_client_table_has_linked_user_column()) {
         global $wpdb;
         $table = peracrm_table('crm_client');
-        $linked_user_id = (int) $wpdb->get_var(
+        $row = $wpdb->get_row(
             $wpdb->prepare("SELECT linked_user_id FROM {$table} WHERE id = %d", $client_id)
         );
-        return $linked_user_id;
+        if (null !== $row) {
+            return (int) $row->linked_user_id;
+        }
     }
 
     return (int) get_post_meta($client_id, 'linked_user_id', true);
