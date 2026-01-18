@@ -52,6 +52,7 @@ function peracrm_render_pipeline_page()
     }
 
     $is_admin = current_user_can('manage_options');
+    $can_reassign = function_exists('peracrm_admin_user_can_reassign') && peracrm_admin_user_can_reassign();
     $statuses = peracrm_pipeline_status_labels();
     $client_type_options = peracrm_pipeline_client_type_options();
     $health_options = peracrm_pipeline_health_options();
@@ -119,7 +120,7 @@ function peracrm_render_pipeline_page()
 
     $advisor_options = [];
     $advisor_map = [];
-    if ($is_admin) {
+    if ($is_admin || $can_reassign) {
         $advisor_options = get_users([
             'fields' => ['ID', 'display_name'],
             'capability' => 'edit_crm_clients',
@@ -165,6 +166,23 @@ function peracrm_render_pipeline_page()
                 '<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>',
                 esc_attr($class),
                 esc_html($message)
+            );
+        }
+    }
+
+    $bulk_done = isset($_GET['bulk_done']) ? absint($_GET['bulk_done']) : null;
+    $bulk_failed = isset($_GET['bulk_failed']) ? absint($_GET['bulk_failed']) : null;
+    if (null !== $bulk_done || null !== $bulk_failed) {
+        if (!empty($bulk_done)) {
+            printf(
+                '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+                esc_html(sprintf('Bulk action applied to %d clients.', $bulk_done))
+            );
+        }
+        if (!empty($bulk_failed)) {
+            printf(
+                '<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+                esc_html(sprintf('%d clients skipped (not authorized / invalid / missing tables).', $bulk_failed))
             );
         }
     }
@@ -425,6 +443,66 @@ function peracrm_render_pipeline_page()
         $base_params['view_id'] = $active_view_id;
     }
 
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-pipeline-bulk" id="peracrm-pipeline-bulk">';
+    echo '<input type="hidden" name="action" value="peracrm_pipeline_bulk_action" />';
+    wp_nonce_field('peracrm_pipeline_bulk_action');
+    foreach ($base_params as $param_key => $param_value) {
+        echo '<input type="hidden" name="' . esc_attr($param_key) . '" value="' . esc_attr($param_value) . '" />';
+    }
+    echo '<label for="peracrm-bulk-action">Bulk action</label>';
+    echo '<select name="bulk_action" id="peracrm-bulk-action">';
+    echo '<option value="move_stage">' . esc_html('Move stage') . '</option>';
+    if ($can_reassign) {
+        echo '<option value="reassign_advisor">' . esc_html('Reassign advisor') . '</option>';
+    }
+    echo '<option value="add_reminder">' . esc_html('Add reminder') . '</option>';
+    echo '</select>';
+
+    echo '<label for="peracrm-bulk-stage" class="screen-reader-text">Stage</label>';
+    echo '<select name="to_status" id="peracrm-bulk-stage">';
+    foreach ($statuses as $status_key => $status_label) {
+        printf(
+            '<option value="%1$s">%2$s</option>',
+            esc_attr($status_key),
+            esc_html($status_label)
+        );
+    }
+    echo '</select>';
+
+    if ($can_reassign) {
+        echo '<label for="peracrm-bulk-advisor" class="screen-reader-text">Advisor</label>';
+        echo '<select name="advisor_user_id" id="peracrm-bulk-advisor">';
+        echo '<option value="0">' . esc_html('Select advisor') . '</option>';
+        foreach ($advisor_options as $advisor) {
+            printf(
+                '<option value="%1$d">%2$s</option>',
+                (int) $advisor->ID,
+                esc_html($advisor->display_name)
+            );
+        }
+        echo '</select>';
+    }
+
+    echo '<label for="peracrm-bulk-due-at" class="screen-reader-text">Reminder due at</label>';
+    echo '<input type="datetime-local" name="bulk_due_at" id="peracrm-bulk-due-at" />';
+    echo '<label for="peracrm-bulk-note" class="screen-reader-text">Reminder note</label>';
+    echo '<input type="text" name="bulk_note" id="peracrm-bulk-note" maxlength="200" placeholder="' . esc_attr('Reminder note') . '" />';
+    if ($is_admin) {
+        echo '<label for="peracrm-bulk-reminder-advisor" class="screen-reader-text">Reminder advisor</label>';
+        echo '<select name="reminder_advisor_user_id" id="peracrm-bulk-reminder-advisor">';
+        echo '<option value="0">' . esc_html('Assign to me') . '</option>';
+        foreach ($advisor_options as $advisor) {
+            printf(
+                '<option value="%1$d">%2$s</option>',
+                (int) $advisor->ID,
+                esc_html($advisor->display_name)
+            );
+        }
+        echo '</select>';
+    }
+    echo '<button type="submit" class="button button-primary">Apply</button>';
+    echo '</form>';
+
     echo '<div class="peracrm-pipeline-board">';
     foreach ($columns as $status_key => $column) {
         $label = $column['label'];
@@ -438,6 +516,10 @@ function peracrm_render_pipeline_page()
 
         echo '<div class="peracrm-pipeline-column">';
         echo '<div class="peracrm-pipeline-column__header">' . esc_html($label) . '</div>';
+        echo '<label class="peracrm-pipeline-column__select">';
+        echo '<input type="checkbox" class="peracrm-pipeline-select-all" data-status="' . esc_attr($status_key) . '" form="peracrm-pipeline-bulk" />';
+        echo '<span>' . esc_html('Select all in column') . '</span>';
+        echo '</label>';
 
         if (empty($ids)) {
             echo '<p class="peracrm-empty">No clients found.</p>';
@@ -500,6 +582,9 @@ function peracrm_render_pipeline_page()
                 }
 
                 echo '<div class="peracrm-pipeline-card">';
+                echo '<div class="peracrm-pipeline-card__select">';
+                echo '<input type="checkbox" class="peracrm-pipeline-select" data-status="' . esc_attr($status_key) . '" form="peracrm-pipeline-bulk" name="client_ids[]" value="' . esc_attr($client_id) . '" />';
+                echo '</div>';
                 echo '<div class="peracrm-pipeline-card__title">';
                 if ($client_link) {
                     echo '<a href="' . esc_url($client_link) . '">' . esc_html($client_title) . '</a>';
@@ -589,5 +674,19 @@ function peracrm_render_pipeline_page()
         echo '</div>';
     }
     echo '</div>';
+    echo '<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var bulkSelects = document.querySelectorAll(".peracrm-pipeline-select-all");
+        bulkSelects.forEach(function (toggle) {
+            toggle.addEventListener("change", function () {
+                var status = toggle.getAttribute("data-status");
+                var checkboxes = document.querySelectorAll(".peracrm-pipeline-select[data-status=\'" + status + "\']");
+                checkboxes.forEach(function (box) {
+                    box.checked = toggle.checked;
+                });
+            });
+        });
+    });
+    </script>';
     echo '</div>';
 }
