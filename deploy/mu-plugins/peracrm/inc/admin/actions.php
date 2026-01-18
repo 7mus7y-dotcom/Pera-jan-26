@@ -214,13 +214,28 @@ function peracrm_admin_search_user_for_link($search_term, $client_id = 0)
     ]);
 }
 
+function peracrm_admin_get_assigned_advisor_id_for_client($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    if (function_exists('peracrm_client_get_assigned_advisor_id')) {
+        return (int) peracrm_client_get_assigned_advisor_id($client_id);
+    }
+
+    $assigned = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
+    if ($assigned > 0) {
+        return $assigned;
+    }
+
+    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+}
+
 function peracrm_handle_add_note()
 {
     if (!is_user_logged_in()) {
-        wp_die('Unauthorized');
-    }
-
-    if (!peracrm_admin_user_can_manage()) {
         wp_die('Unauthorized');
     }
 
@@ -232,7 +247,10 @@ function peracrm_handle_add_note()
         wp_die('Invalid client');
     }
 
-    if (!current_user_can('edit_post', $client_id)) {
+    $assigned_advisor_id = peracrm_admin_get_assigned_advisor_id_for_client($client_id);
+    $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+    $is_assigned_advisor = $assigned_advisor_id > 0 && $assigned_advisor_id === get_current_user_id();
+    if (!$can_override && !$is_assigned_advisor) {
         wp_die('Unauthorized');
     }
 
@@ -471,7 +489,7 @@ function peracrm_handle_reassign_client_advisor()
 
 function peracrm_handle_add_reminder()
 {
-    if (!is_user_logged_in() || !peracrm_admin_user_can_manage()) {
+    if (!is_user_logged_in()) {
         wp_die('Unauthorized');
     }
 
@@ -483,7 +501,10 @@ function peracrm_handle_add_reminder()
         wp_die('Invalid client');
     }
 
-    if (!current_user_can('edit_post', $client_id)) {
+    $assigned_advisor_id = peracrm_admin_get_assigned_advisor_id_for_client($client_id);
+    $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_all_reminders');
+    $is_assigned_advisor = $assigned_advisor_id > 0 && $assigned_advisor_id === get_current_user_id();
+    if (!$can_override && !$is_assigned_advisor) {
         wp_die('Unauthorized');
     }
 
