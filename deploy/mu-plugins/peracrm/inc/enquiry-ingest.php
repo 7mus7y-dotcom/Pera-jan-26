@@ -71,6 +71,16 @@ function peracrm_find_client_by_email($email)
     return (int) $existing[0];
 }
 
+function peracrm_find_client_id_by_email($email_norm)
+{
+    $email_norm = peracrm_normalize_email($email_norm);
+    if ($email_norm === '') {
+        return 0;
+    }
+
+    return peracrm_find_client_by_email($email_norm);
+}
+
 function peracrm_update_client_from_enquiry($client_id, $email, $name, $phone, $source)
 {
     $client_id = (int) $client_id;
@@ -332,4 +342,165 @@ function peracrm_enquiry_assign_advisor_if_missing($client_id)
 
     update_post_meta($client_id, 'assigned_advisor_user_id', $advisor_id);
     update_post_meta($client_id, 'crm_assigned_advisor', $advisor_id);
+}
+
+function peracrm_enquiry_table_exists($table_name)
+{
+    global $wpdb;
+
+    if ($table_name === '') {
+        return false;
+    }
+
+    $query = $wpdb->prepare('SHOW TABLES LIKE %s', $table_name);
+
+    return $wpdb->get_var($query) === $table_name;
+}
+
+function peracrm_ingest_enquiry(array $payload)
+{
+    $email = isset($payload['email']) ? sanitize_email($payload['email']) : '';
+    if (!is_email($email)) {
+        return 0;
+    }
+
+    $first_name = '';
+    $last_name = '';
+    $full_name = '';
+    if (!empty($payload['name'])) {
+        $full_name = sanitize_text_field($payload['name']);
+        $parts = peracrm_enquiry_split_name($full_name);
+        $first_name = $parts['first_name'];
+        $last_name = $parts['last_name'];
+    } else {
+        $first_name = isset($payload['first_name']) ? sanitize_text_field($payload['first_name']) : '';
+        $last_name = isset($payload['last_name']) ? sanitize_text_field($payload['last_name']) : '';
+        $full_name = trim($first_name . ' ' . $last_name);
+    }
+
+    $phone = isset($payload['phone']) ? sanitize_text_field($payload['phone']) : '';
+    $source = isset($payload['form_source']) ? sanitize_key($payload['form_source']) : 'web_enquiry';
+
+    $client_id = 0;
+    if (function_exists('peracrm_resolve_client_id_from_enquiry')) {
+        $client_id = (int) peracrm_resolve_client_id_from_enquiry($email, $full_name, $phone, $source, true);
+    } elseif (function_exists('peracrm_find_or_create_client_by_email')) {
+        $client_id = (int) peracrm_find_or_create_client_by_email($email, [
+            'first_name' => isset($first_name) ? $first_name : '',
+            'last_name' => isset($last_name) ? $last_name : '',
+            'phone' => $phone,
+            'source' => $source,
+            'status' => 'enquiry',
+        ]);
+    }
+
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    if (function_exists('peracrm_client_get_profile') && function_exists('peracrm_client_update_profile')) {
+        $profile = peracrm_client_get_profile($client_id);
+        $status = $profile['status'] !== '' ? $profile['status'] : 'enquiry';
+        $client_type = $profile['client_type'];
+
+        if ($client_type === '') {
+            $type_hint = isset($payload['client_type']) ? sanitize_key($payload['client_type']) : '';
+            $enquiry_type = isset($payload['enquiry_type']) ? sanitize_key($payload['enquiry_type']) : '';
+            if ($type_hint !== '') {
+                $client_type = $type_hint;
+            } elseif (in_array($enquiry_type, ['property', 'investment'], true)) {
+                $client_type = 'investor';
+            } elseif ($enquiry_type === 'citizenship') {
+                $client_type = 'citizenship';
+            } elseif ($enquiry_type === 'general') {
+                $client_type = 'lifestyle';
+            }
+        }
+
+        $profile_data = [
+            'status' => $status,
+            'client_type' => $client_type,
+            'preferred_contact' => $profile['preferred_contact'],
+            'phone' => $phone !== '' ? $phone : $profile['phone'],
+            'email' => $email,
+        ];
+
+        if (array_key_exists('budget_min_usd', $payload)) {
+            $profile_data['budget_min_usd'] = $payload['budget_min_usd'];
+        }
+
+        if (array_key_exists('budget_max_usd', $payload)) {
+            $profile_data['budget_max_usd'] = $payload['budget_max_usd'];
+        }
+
+        peracrm_client_update_profile($client_id, $profile_data);
+    } else {
+        if ($email !== '') {
+            update_post_meta($client_id, '_peracrm_email', $email);
+        }
+        if ($phone !== '') {
+            update_post_meta($client_id, '_peracrm_phone', $phone);
+        }
+
+        $existing_status = get_post_meta($client_id, '_peracrm_status', true);
+        if ($existing_status === '') {
+            update_post_meta($client_id, '_peracrm_status', 'enquiry');
+        }
+    }
+
+    $property_id = isset($payload['property_id']) ? absint($payload['property_id']) : 0;
+    $message = isset($payload['message']) ? wp_strip_all_tags($payload['message']) : '';
+    if (strlen($message) > 200) {
+        $message = substr($message, 0, 200);
+    }
+
+    $activity_payload = [
+        'source' => $source,
+        'form' => isset($payload['form']) ? sanitize_key($payload['form']) : '',
+    ];
+
+    if ($property_id > 0) {
+        $activity_payload['property_id'] = $property_id;
+    }
+
+    if ($message !== '') {
+        $activity_payload['message_excerpt'] = $message;
+    }
+
+    $can_log_activity = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    if ($can_log_activity && function_exists('peracrm_log_event')) {
+        $should_log = true;
+        if (function_exists('peracrm_activity_recent_exists')) {
+            $should_log = !peracrm_activity_recent_exists($client_id, 'enquiry', $property_id, 15 * MINUTE_IN_SECONDS);
+        }
+
+        if ($should_log) {
+            peracrm_log_event($client_id, 'enquiry', $activity_payload);
+        }
+    }
+
+    if ($property_id > 0 && function_exists('peracrm_client_property_link')) {
+        $property = get_post($property_id);
+        $table = peracrm_table('crm_client_property');
+        if ($property && 'property' === $property->post_type && 'publish' === $property->post_status
+            && peracrm_enquiry_table_exists($table)) {
+            peracrm_client_property_link($client_id, $property_id, 'enquiry');
+        }
+    }
+
+    if (function_exists('peracrm_reminder_add') && function_exists('peracrm_reminders_table_exists')) {
+        if (peracrm_reminders_table_exists()) {
+            $advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
+                ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+                : 0;
+
+            if ($advisor_id > 0) {
+                $timestamp = current_time('timestamp') + DAY_IN_SECONDS;
+                $due_at = date_i18n('Y-m-d H:i:s', $timestamp, false);
+                peracrm_reminder_add($client_id, $advisor_id, $due_at, 'Follow up: new enquiry received');
+            }
+        }
+    }
+
+    return $client_id;
 }

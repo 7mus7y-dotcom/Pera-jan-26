@@ -76,19 +76,21 @@ function pera_handle_citizenship_enquiry() {
       $enquiry_type = 'rent';
     }
 
-    $name_parts = pera_crm_split_name( $name );
-
-    pera_crm_log_enquiry(
-      array(
-        'email'        => $email,
-        'first_name'   => $name_parts['first_name'],
-        'last_name'    => $name_parts['last_name'],
-        'phone'        => $phone,
-        'enquiry_type' => $enquiry_type,
-        'property_id'  => $property_id,
-        'form_source'  => $form_context,
-      )
-    );
+    if ( function_exists( 'peracrm_ingest_enquiry' ) ) {
+      $form_name = ( $form_context === 'property' ) ? 'property_enquiry' : 'sell_rent';
+      peracrm_ingest_enquiry(
+        array(
+          'email'        => $email,
+          'name'         => $name,
+          'phone'        => $phone,
+          'enquiry_type' => $enquiry_type,
+          'property_id'  => $property_id,
+          'form_source'  => $form_context,
+          'form'         => $form_name,
+          'message'      => $message,
+        )
+      );
+    }
 
     $to = 'info@peraproperty.com';
 
@@ -205,18 +207,19 @@ function pera_handle_citizenship_enquiry() {
       $contact_methods = array_map( 'sanitize_text_field', wp_unslash( $_POST['contact_method'] ) );
     }
 
-    $name_parts = pera_crm_split_name( $name );
-
-    pera_crm_log_enquiry(
-      array(
-        'email'        => $email,
-        'first_name'   => $name_parts['first_name'],
-        'last_name'    => $name_parts['last_name'],
-        'phone'        => $phone,
-        'enquiry_type' => 'citizenship',
-        'form_source'  => 'citizenship',
-      )
-    );
+    if ( function_exists( 'peracrm_ingest_enquiry' ) ) {
+      peracrm_ingest_enquiry(
+        array(
+          'email'        => $email,
+          'name'         => $name,
+          'phone'        => $phone,
+          'enquiry_type' => 'citizenship',
+          'form_source'  => 'citizenship',
+          'form'         => 'citizenship',
+          'message'      => $message,
+        )
+      );
+    }
 
     $to      = 'info@peraproperty.com';
     $subject = 'New Citizenship Enquiry from ' . $name;
