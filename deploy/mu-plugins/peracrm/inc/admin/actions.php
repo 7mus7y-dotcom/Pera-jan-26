@@ -9,6 +9,107 @@ function peracrm_admin_user_can_manage()
     return current_user_can('manage_options') || current_user_can('edit_crm_clients');
 }
 
+function peracrm_pipeline_get_user_views($user_id)
+{
+    $views = get_user_meta((int) $user_id, '_peracrm_pipeline_views', true);
+    if (!is_array($views)) {
+        return [];
+    }
+
+    $sanitized = [];
+    foreach ($views as $view) {
+        if (!is_array($view)) {
+            continue;
+        }
+        if (empty($view['id']) || empty($view['name']) || empty($view['filters']) || !is_array($view['filters'])) {
+            continue;
+        }
+        $sanitized[] = [
+            'id' => sanitize_text_field($view['id']),
+            'name' => sanitize_text_field($view['name']),
+            'filters' => $view['filters'],
+            'created_at' => isset($view['created_at']) ? (int) $view['created_at'] : 0,
+        ];
+    }
+
+    return $sanitized;
+}
+
+function peracrm_pipeline_sanitize_view_name($name)
+{
+    $name = sanitize_text_field($name);
+    $name = trim($name);
+    if (strlen($name) > 40) {
+        $name = substr($name, 0, 40);
+    }
+
+    return $name;
+}
+
+function peracrm_pipeline_sanitize_view_filters($raw_filters, $is_admin)
+{
+    $client_type_options = function_exists('peracrm_pipeline_client_type_options')
+        ? peracrm_pipeline_client_type_options()
+        : [];
+    $health_options = function_exists('peracrm_pipeline_health_options')
+        ? peracrm_pipeline_health_options()
+        : [];
+
+    $client_type = isset($raw_filters['client_type']) ? sanitize_key($raw_filters['client_type']) : 'all';
+    if (!isset($client_type_options[$client_type])) {
+        $client_type = 'all';
+    }
+
+    $health = isset($raw_filters['health']) ? sanitize_key($raw_filters['health']) : 'all';
+    if (!isset($health_options[$health])) {
+        $health = 'all';
+    }
+
+    $hide_empty_columns = !empty($raw_filters['hide_empty_columns']) ? 1 : 0;
+
+    $filters = [
+        'client_type' => $client_type,
+        'health' => $health,
+        'hide_empty_columns' => $hide_empty_columns,
+    ];
+
+    if ($is_admin) {
+        $advisor_id = isset($raw_filters['advisor']) ? absint($raw_filters['advisor']) : 0;
+        if ($advisor_id > 0 && !peracrm_user_is_valid_advisor($advisor_id)) {
+            $advisor_id = 0;
+        }
+        $filters['advisor_id'] = $advisor_id;
+    }
+
+    return $filters;
+}
+
+function peracrm_pipeline_build_base_url($filters = [])
+{
+    $base = [
+        'post_type' => 'crm_client',
+        'page' => 'peracrm-pipeline',
+    ];
+
+    if (isset($filters['client_type'])) {
+        $base['client_type'] = sanitize_key($filters['client_type']);
+    }
+    if (isset($filters['health'])) {
+        $base['health'] = sanitize_key($filters['health']);
+    }
+    if (array_key_exists('advisor_id', $filters)) {
+        $base['advisor'] = absint($filters['advisor_id']);
+    }
+    if (!empty($filters['hide_empty_columns'])) {
+        $base['hide_empty_columns'] = 1;
+    }
+    if (!empty($filters['view_id'])) {
+        $base['view_id'] = sanitize_text_field($filters['view_id']);
+    }
+
+    return add_query_arg($base, admin_url('edit.php'));
+}
+
 function peracrm_admin_get_client($client_id)
 {
     $client = get_post((int) $client_id);
@@ -264,6 +365,91 @@ function peracrm_handle_add_note()
     }
 
     peracrm_admin_redirect_with_notice(get_edit_post_link($client_id, 'raw'), 'note_added');
+}
+
+function peracrm_handle_pipeline_save_view()
+{
+    if (!is_user_logged_in()) {
+        wp_die('Unauthorized');
+    }
+
+    if (!current_user_can('edit_crm_clients')) {
+        wp_die('Unauthorized');
+    }
+
+    check_admin_referer('peracrm_pipeline_save_view');
+
+    $name = isset($_POST['view_name']) ? peracrm_pipeline_sanitize_view_name(wp_unslash($_POST['view_name'])) : '';
+    if ($name === '') {
+        peracrm_admin_redirect_with_notice(peracrm_pipeline_build_base_url(), 'pipeline_view_name_missing');
+    }
+
+    $is_admin = current_user_can('manage_options');
+    $filters = peracrm_pipeline_sanitize_view_filters(wp_unslash($_POST), $is_admin);
+    if (!$is_admin) {
+        unset($filters['advisor_id']);
+    }
+
+    $user_id = get_current_user_id();
+    $views = peracrm_pipeline_get_user_views($user_id);
+    $view_id = uniqid('view_', true);
+    $views[] = [
+        'id' => $view_id,
+        'name' => $name,
+        'filters' => $filters,
+        'created_at' => time(),
+    ];
+
+    if (count($views) > 10) {
+        $views = array_slice($views, -10);
+    }
+
+    update_user_meta($user_id, '_peracrm_pipeline_views', $views);
+
+    $redirect = peracrm_pipeline_build_base_url(array_merge($filters, ['view_id' => $view_id]));
+    peracrm_admin_redirect_with_notice($redirect, 'pipeline_view_saved');
+}
+
+function peracrm_handle_pipeline_delete_view()
+{
+    if (!is_user_logged_in()) {
+        wp_die('Unauthorized');
+    }
+
+    if (!current_user_can('edit_crm_clients')) {
+        wp_die('Unauthorized');
+    }
+
+    check_admin_referer('peracrm_pipeline_delete_view');
+
+    $view_id = isset($_POST['view_id']) ? sanitize_text_field(wp_unslash($_POST['view_id'])) : '';
+    if ($view_id === '') {
+        peracrm_admin_redirect_with_notice(peracrm_pipeline_build_base_url(), 'pipeline_view_missing');
+    }
+
+    $user_id = get_current_user_id();
+    $views = peracrm_pipeline_get_user_views($user_id);
+    $updated = [];
+    $found = false;
+    foreach ($views as $view) {
+        if (!is_array($view) || !isset($view['id'])) {
+            continue;
+        }
+        if ($view['id'] === $view_id) {
+            $found = true;
+            continue;
+        }
+        $updated[] = $view;
+    }
+
+    if (!$found) {
+        peracrm_admin_redirect_with_notice(peracrm_pipeline_build_base_url(), 'pipeline_view_missing');
+    }
+
+    update_user_meta($user_id, '_peracrm_pipeline_views', $updated);
+
+    $redirect = peracrm_pipeline_build_base_url();
+    peracrm_admin_redirect_with_notice($redirect, 'pipeline_view_deleted');
 }
 
 function peracrm_handle_link_user()
@@ -654,6 +840,10 @@ function peracrm_admin_notices()
         'profile_saved' => ['success', 'Client profile updated.'],
         'profile_failed' => ['error', 'Unable to update client profile.'],
         'advisor_reassigned' => ['success', 'Advisor reassigned.'],
+        'pipeline_view_saved' => ['success', 'Pipeline view saved.'],
+        'pipeline_view_deleted' => ['success', 'Pipeline view deleted.'],
+        'pipeline_view_missing' => ['error', 'Pipeline view not found.'],
+        'pipeline_view_name_missing' => ['error', 'Please enter a view name.'],
     ];
 
     if (!isset($messages[$notice])) {

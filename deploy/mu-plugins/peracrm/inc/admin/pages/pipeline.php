@@ -56,15 +56,66 @@ function peracrm_render_pipeline_page()
     $client_type_options = peracrm_pipeline_client_type_options();
     $health_options = peracrm_pipeline_health_options();
 
-    $client_type = isset($_GET['client_type']) ? sanitize_key(wp_unslash($_GET['client_type'])) : 'all';
+    $views = peracrm_pipeline_get_user_views(get_current_user_id());
+    $view_map = [];
+    foreach ($views as $view) {
+        if (!empty($view['id'])) {
+            $view_map[$view['id']] = $view;
+        }
+    }
+
+    $active_view_id = isset($_GET['view_id']) ? sanitize_text_field(wp_unslash($_GET['view_id'])) : '';
+    if ($active_view_id !== '' && !isset($view_map[$active_view_id])) {
+        $active_view_id = '';
+    }
+
+    $view_filters = [];
+    if ($active_view_id !== '' && isset($view_map[$active_view_id]['filters']) && is_array($view_map[$active_view_id]['filters'])) {
+        $view_filters = $view_map[$active_view_id]['filters'];
+    }
+    if (!empty($view_filters)) {
+        $view_filters['client_type'] = isset($view_filters['client_type']) ? sanitize_key($view_filters['client_type']) : 'all';
+        if (!isset($client_type_options[$view_filters['client_type']])) {
+            $view_filters['client_type'] = 'all';
+        }
+
+        $view_filters['health'] = isset($view_filters['health']) ? sanitize_key($view_filters['health']) : 'all';
+        if (!isset($health_options[$view_filters['health']])) {
+            $view_filters['health'] = 'all';
+        }
+
+        $view_filters['hide_empty_columns'] = !empty($view_filters['hide_empty_columns']) ? 1 : 0;
+
+        if ($is_admin) {
+            $view_filters['advisor_id'] = isset($view_filters['advisor_id']) ? absint($view_filters['advisor_id']) : 0;
+            if ($view_filters['advisor_id'] > 0 && !peracrm_user_is_valid_advisor($view_filters['advisor_id'])) {
+                $view_filters['advisor_id'] = 0;
+            }
+        } else {
+            unset($view_filters['advisor_id']);
+        }
+    }
+
+    $client_type_source = $active_view_id !== '' && isset($view_filters['client_type'])
+        ? $view_filters['client_type']
+        : (isset($_GET['client_type']) ? sanitize_key(wp_unslash($_GET['client_type'])) : 'all');
+    $client_type = sanitize_key($client_type_source);
     if (!isset($client_type_options[$client_type])) {
         $client_type = 'all';
     }
 
-    $health_filter = isset($_GET['health']) ? sanitize_key(wp_unslash($_GET['health'])) : 'all';
+    $health_source = $active_view_id !== '' && isset($view_filters['health'])
+        ? $view_filters['health']
+        : (isset($_GET['health']) ? sanitize_key(wp_unslash($_GET['health'])) : 'all');
+    $health_filter = sanitize_key($health_source);
     if (!isset($health_options[$health_filter])) {
         $health_filter = 'all';
     }
+
+    $hide_empty_source = $active_view_id !== '' && array_key_exists('hide_empty_columns', $view_filters)
+        ? $view_filters['hide_empty_columns']
+        : (isset($_GET['hide_empty_columns']) ? wp_unslash($_GET['hide_empty_columns']) : 0);
+    $hide_empty_columns = !empty($hide_empty_source) ? 1 : 0;
 
     $advisor_options = [];
     $advisor_map = [];
@@ -80,7 +131,10 @@ function peracrm_render_pipeline_page()
         }
     }
 
-    $advisor_id = $is_admin ? absint($_GET['advisor'] ?? 0) : get_current_user_id();
+    $advisor_source = $active_view_id !== '' && array_key_exists('advisor_id', $view_filters)
+        ? $view_filters['advisor_id']
+        : ($_GET['advisor'] ?? 0);
+    $advisor_id = $is_admin ? absint($advisor_source) : get_current_user_id();
     if ($is_admin && $advisor_id > 0 && !isset($advisor_map[$advisor_id])) {
         $advisor_id = 0;
     }
@@ -103,6 +157,53 @@ function peracrm_render_pipeline_page()
         echo esc_html('Reminders data unavailable. Counts will display as 0 or —.');
         echo '</p></div>';
     }
+
+    echo '<div class="peracrm-pipeline-views">';
+    echo '<form method="get" class="peracrm-pipeline-views__form">';
+    echo '<input type="hidden" name="post_type" value="crm_client" />';
+    echo '<input type="hidden" name="page" value="peracrm-pipeline" />';
+    echo '<label for="peracrm-pipeline-view" class="peracrm-pipeline-views__label">View:</label>';
+    echo '<select name="view_id" id="peracrm-pipeline-view">';
+    printf(
+        '<option value=""%s>%s</option>',
+        selected($active_view_id, '', false),
+        esc_html('Default')
+    );
+    foreach ($views as $view) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($view['id']),
+            selected($active_view_id, $view['id'], false),
+            esc_html($view['name'])
+        );
+    }
+    echo '</select>';
+    echo '<button type="submit" class="button">Apply</button>';
+    echo '</form>';
+
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-pipeline-views__form">';
+    echo '<input type="hidden" name="action" value="peracrm_pipeline_save_view" />';
+    wp_nonce_field('peracrm_pipeline_save_view');
+    echo '<label for="peracrm-pipeline-view-name" class="screen-reader-text">View name</label>';
+    echo '<input type="text" name="view_name" id="peracrm-pipeline-view-name" maxlength="40" placeholder="View name" />';
+    echo '<input type="hidden" name="client_type" value="' . esc_attr($client_type) . '" />';
+    echo '<input type="hidden" name="health" value="' . esc_attr($health_filter) . '" />';
+    echo '<input type="hidden" name="hide_empty_columns" value="' . esc_attr($hide_empty_columns) . '" />';
+    if ($is_admin) {
+        echo '<input type="hidden" name="advisor" value="' . esc_attr($advisor_id) . '" />';
+    }
+    echo '<button type="submit" class="button">Save current view</button>';
+    echo '</form>';
+
+    if ($active_view_id !== '') {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-pipeline-views__form">';
+        echo '<input type="hidden" name="action" value="peracrm_pipeline_delete_view" />';
+        wp_nonce_field('peracrm_pipeline_delete_view');
+        echo '<input type="hidden" name="view_id" value="' . esc_attr($active_view_id) . '" />';
+        echo '<button type="submit" class="button">Delete view</button>';
+        echo '</form>';
+    }
+    echo '</div>';
 
     echo '<form method="get" class="peracrm-filters">';
     echo '<input type="hidden" name="post_type" value="crm_client" />';
@@ -154,6 +255,10 @@ function peracrm_render_pipeline_page()
     echo '</select>';
 
     echo '<button type="submit" class="button">Filter</button>';
+    echo '<label for="peracrm-pipeline-hide-empty" class="peracrm-pipeline-hide-empty">';
+    echo '<input type="checkbox" name="hide_empty_columns" id="peracrm-pipeline-hide-empty" value="1"' . checked($hide_empty_columns, 1, false) . ' />';
+    echo '<span>Hide empty columns</span>';
+    echo '</label>';
     echo '</form>';
 
     $columns = [];
@@ -296,6 +401,12 @@ function peracrm_render_pipeline_page()
     if ($is_admin) {
         $base_params['advisor'] = $advisor_id;
     }
+    if ($hide_empty_columns) {
+        $base_params['hide_empty_columns'] = 1;
+    }
+    if ($active_view_id !== '') {
+        $base_params['view_id'] = $active_view_id;
+    }
 
     echo '<div class="peracrm-pipeline-board">';
     foreach ($columns as $status_key => $column) {
@@ -303,6 +414,10 @@ function peracrm_render_pipeline_page()
         $ids = $column['display_ids'];
         $paged_param = $column['paged_param'];
         $paged = $column['paged'];
+
+        if ($hide_empty_columns && empty($ids)) {
+            continue;
+        }
 
         echo '<div class="peracrm-pipeline-column">';
         echo '<div class="peracrm-pipeline-column__header">' . esc_html($label) . '</div>';
@@ -337,6 +452,7 @@ function peracrm_render_pipeline_page()
                 $overdue = isset($overdue_counts[$client_id]) ? (int) $overdue_counts[$client_id] : 0;
                 $next_due = isset($next_due_map[$client_id]) ? $next_due_map[$client_id] : '';
                 $next_due_label = '—';
+                $due_ts = 0;
                 if ($next_due) {
                     $due_ts = strtotime($next_due);
                     if ($due_ts) {
@@ -351,6 +467,21 @@ function peracrm_render_pipeline_page()
                     }
                 }
 
+                $hints = [];
+                if ($overdue > 0) {
+                    $hints[] = ['label' => 'Overdue', 'class' => 'overdue'];
+                }
+                $due_soon_limit = $now_ts + (7 * DAY_IN_SECONDS);
+                if ($overdue === 0 && $due_ts && $due_ts >= $now_ts && $due_ts <= $due_soon_limit) {
+                    $hints[] = ['label' => 'Due soon', 'class' => 'due-soon'];
+                }
+                if ($has_activity_table && $last_activity_ts > 0 && $last_activity_ts < ($now_ts - (30 * DAY_IN_SECONDS))) {
+                    $hints[] = ['label' => 'No activity', 'class' => 'no-activity'];
+                }
+                if ($has_activity_table && $status_key === 'enquiry' && $last_activity_ts === 0 && $open === 0) {
+                    $hints[] = ['label' => 'New enquiry', 'class' => 'new-enquiry'];
+                }
+
                 echo '<div class="peracrm-pipeline-card">';
                 echo '<div class="peracrm-pipeline-card__title">';
                 if ($client_link) {
@@ -359,6 +490,17 @@ function peracrm_render_pipeline_page()
                     echo esc_html($client_title);
                 }
                 echo '</div>';
+                if (!empty($hints)) {
+                    echo '<div class="peracrm-pipeline-card__hints">';
+                    foreach ($hints as $hint) {
+                        printf(
+                            '<span class="peracrm-pipeline-hint peracrm-pipeline-hint--%1$s">%2$s</span>',
+                            esc_attr($hint['class']),
+                            esc_html($hint['label'])
+                        );
+                    }
+                    echo '</div>';
+                }
                 echo '<div class="peracrm-pipeline-card__meta">';
                 echo '<div><strong>Health:</strong> ' . $badge . '</div>';
                 echo '<div><strong>Last activity:</strong> ' . esc_html($last_activity) . '</div>';
