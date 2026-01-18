@@ -232,7 +232,12 @@ function peracrm_handle_add_note()
         wp_die('Invalid client');
     }
 
-    if (!current_user_can('edit_post', $client_id)) {
+    $current_user_id = get_current_user_id();
+    $assigned_advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
+        ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+        : 0;
+    $is_admin = current_user_can('manage_options');
+    if (!$is_admin && $assigned_advisor_id !== $current_user_id) {
         wp_die('Unauthorized');
     }
 
@@ -486,7 +491,12 @@ function peracrm_handle_add_reminder()
         wp_die('Invalid client');
     }
 
-    if (!current_user_can('edit_post', $client_id)) {
+    $current_user_id = get_current_user_id();
+    $assigned_advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
+        ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+        : 0;
+    $is_admin = current_user_can('manage_options');
+    if (!$is_admin && $assigned_advisor_id !== $current_user_id) {
         wp_die('Unauthorized');
     }
 
@@ -499,7 +509,9 @@ function peracrm_handle_add_reminder()
     $note = isset($_POST['peracrm_reminder_note']) ? sanitize_textarea_field(wp_unslash($_POST['peracrm_reminder_note'])) : '';
 
     $note = substr($note, 0, 5000);
-    $assigned_advisor = (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+    $assigned_advisor = function_exists('peracrm_client_get_assigned_advisor_id')
+        ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+        : (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
     if ($assigned_advisor <= 0) {
         $assigned_advisor = get_current_user_id();
     }
