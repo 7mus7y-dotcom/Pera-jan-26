@@ -364,6 +364,13 @@ function peracrm_render_work_queue_page()
     foreach ($query->posts as $post) {
         $client_id = (int) $post->ID;
         $client_link = get_edit_post_link($client_id, '');
+        $view_link = add_query_arg(
+            [
+                'page' => 'peracrm-client-view',
+                'client_id' => $client_id,
+            ],
+            admin_url('admin.php')
+        );
         $health = function_exists('peracrm_client_health_get') ? peracrm_client_health_get($client_id) : [];
         $badge = function_exists('peracrm_client_health_badge_html')
             ? peracrm_client_health_badge_html($health)
@@ -410,10 +417,9 @@ function peracrm_render_work_queue_page()
             echo '<td>' . esc_html($assigned_label) . '</td>';
         }
         echo '<td>';
+        echo '<a href="' . esc_url($view_link) . '">View</a>';
         if ($client_link) {
-            echo '<a href="' . esc_url($client_link) . '">View client</a>';
-        } else {
-            echo '—';
+            echo ' | <a href="' . esc_url($client_link) . '">Edit</a>';
         }
         echo ' | <a href="' . esc_url($reminders_url) . '">View reminders</a>';
         echo '</td>';
