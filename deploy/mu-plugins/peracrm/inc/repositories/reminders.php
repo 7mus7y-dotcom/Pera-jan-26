@@ -43,10 +43,11 @@ function peracrm_reminder_add($client_id, $advisor_user_id, $due_at, $note)
     return peracrm_reminders_insert_fallback($client_id, $advisor_user_id, $due_at, $note);
 }
 
-function peracrm_reminder_update_status($reminder_id, $status, $actor_user_id)
+function peracrm_reminder_update_status($reminder_id, $status, $actor_user_id, $client_id = 0)
 {
     $reminder_id = (int) $reminder_id;
     $actor_user_id = (int) $actor_user_id;
+    $client_id = (int) $client_id;
     if ($reminder_id <= 0 || $actor_user_id <= 0) {
         return false;
     }
@@ -60,7 +61,7 @@ function peracrm_reminder_update_status($reminder_id, $status, $actor_user_id)
         return peracrm_reminders_update_status_table($reminder_id, $status);
     }
 
-    return peracrm_reminders_update_status_fallback($reminder_id, $status);
+    return peracrm_reminders_update_status_fallback($reminder_id, $client_id, $status);
 }
 
 function peracrm_reminders_list_for_client($client_id, $limit = 20, $offset = 0, $status = null)
@@ -111,6 +112,21 @@ function peracrm_reminders_get($reminder_id)
     }
 
     return peracrm_reminders_get_fallback($reminder_id);
+}
+
+function peracrm_reminders_get_for_client($client_id, $reminder_id)
+{
+    $client_id = (int) $client_id;
+    $reminder_id = (int) $reminder_id;
+    if ($client_id <= 0 || $reminder_id <= 0) {
+        return null;
+    }
+
+    if (peracrm_reminders_table_exists()) {
+        return peracrm_reminders_get_for_client_table($client_id, $reminder_id);
+    }
+
+    return peracrm_reminders_get_for_client_fallback($client_id, $reminder_id);
 }
 
 function peracrm_reminders_allowed_statuses()
@@ -368,6 +384,26 @@ function peracrm_reminders_get_table($reminder_id)
     return $row;
 }
 
+function peracrm_reminders_get_for_client_table($client_id, $reminder_id)
+{
+    global $wpdb;
+
+    $table = peracrm_table('crm_reminders');
+    $query = $wpdb->prepare(
+        "SELECT id, client_id, advisor_user_id, due_at, status, note, created_at, updated_at
+         FROM {$table} WHERE id = %d AND client_id = %d",
+        $reminder_id,
+        $client_id
+    );
+
+    $row = $wpdb->get_row($query, ARRAY_A);
+    if (!$row) {
+        return null;
+    }
+
+    return $row;
+}
+
 function peracrm_reminders_range_clause($range, &$params)
 {
     $range = $range !== null ? sanitize_key($range) : '';
@@ -429,18 +465,24 @@ function peracrm_reminders_insert_fallback($client_id, $advisor_user_id, $due_at
     return $next_id;
 }
 
-function peracrm_reminders_update_status_fallback($reminder_id, $status)
+function peracrm_reminders_update_status_fallback($reminder_id, $client_id, $status)
 {
-    $clients = peracrm_reminders_fallback_client_ids();
-    if (empty($clients)) {
-        return false;
+    $client_id = (int) $client_id;
+    $clients = [];
+    if ($client_id > 0) {
+        $clients = [$client_id];
+    } else {
+        $clients = peracrm_reminders_fallback_client_ids();
+        if (empty($clients)) {
+            return false;
+        }
     }
 
     foreach ($clients as $client_id) {
         $reminders = peracrm_reminders_fallback_get($client_id);
         $updated = false;
         foreach ($reminders as $index => $reminder) {
-            if ((int) $reminder['id'] === $reminder_id) {
+            if ((int) $reminder['id'] === $reminder_id && ($client_id === 0 || (int) $reminder['client_id'] === $client_id)) {
                 $reminders[$index]['status'] = $status;
                 $reminders[$index]['updated_at'] = peracrm_now_mysql();
                 $updated = true;
@@ -555,6 +597,18 @@ function peracrm_reminders_get_fallback($reminder_id)
             if ((int) $reminder['id'] === $reminder_id) {
                 return $reminder;
             }
+        }
+    }
+
+    return null;
+}
+
+function peracrm_reminders_get_for_client_fallback($client_id, $reminder_id)
+{
+    $reminders = peracrm_reminders_fallback_get($client_id);
+    foreach ($reminders as $reminder) {
+        if ((int) $reminder['id'] === $reminder_id) {
+            return $reminder;
         }
     }
 
@@ -731,5 +785,8 @@ function peracrm_reminders_due_for_advisor($advisor_user_id, $until_mysql, $limi
 
 function peracrm_reminders_mark_done($id)
 {
-    return peracrm_reminder_update_status($id, 'done', get_current_user_id());
+    $reminder = peracrm_reminders_get($id);
+    $client_id = $reminder ? (int) $reminder['client_id'] : 0;
+
+    return peracrm_reminder_update_status($id, 'done', get_current_user_id(), $client_id);
 }

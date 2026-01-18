@@ -19,8 +19,13 @@ function peracrm_admin_get_client($client_id)
     return $client;
 }
 
-function peracrm_admin_get_reminder($reminder_id)
+function peracrm_admin_get_reminder($reminder_id, $client_id = 0)
 {
+    $client_id = (int) $client_id;
+    if ($client_id > 0) {
+        return peracrm_reminders_get_for_client($client_id, $reminder_id);
+    }
+
     return peracrm_reminders_get($reminder_id);
 }
 
@@ -389,7 +394,8 @@ function peracrm_handle_mark_reminder_done()
     check_admin_referer('peracrm_mark_reminder_done');
 
     $reminder_id = isset($_POST['peracrm_reminder_id']) ? (int) $_POST['peracrm_reminder_id'] : 0;
-    $reminder = peracrm_admin_get_reminder($reminder_id);
+    $client_id = isset($_POST['peracrm_client_id']) ? (int) $_POST['peracrm_client_id'] : 0;
+    $reminder = peracrm_admin_get_reminder($reminder_id, $client_id);
     if (!$reminder) {
         wp_die('Invalid reminder');
     }
@@ -409,7 +415,7 @@ function peracrm_handle_mark_reminder_done()
         $redirect = get_edit_post_link($client_id, 'raw');
     }
 
-    $success = peracrm_reminder_update_status($reminder_id, 'done', get_current_user_id());
+    $success = peracrm_reminder_update_status($reminder_id, 'done', get_current_user_id(), $client_id);
     if (!$success) {
         peracrm_admin_redirect_with_notice($redirect, 'reminder_failed');
     }
@@ -426,7 +432,8 @@ function peracrm_handle_update_reminder_status()
     check_admin_referer('peracrm_update_reminder_status');
 
     $reminder_id = isset($_POST['peracrm_reminder_id']) ? (int) $_POST['peracrm_reminder_id'] : 0;
-    $reminder = peracrm_admin_get_reminder($reminder_id);
+    $client_id = isset($_POST['peracrm_client_id']) ? (int) $_POST['peracrm_client_id'] : 0;
+    $reminder = peracrm_admin_get_reminder($reminder_id, $client_id);
     if (!$reminder) {
         wp_die('Invalid reminder');
     }
@@ -452,7 +459,7 @@ function peracrm_handle_update_reminder_status()
         peracrm_admin_redirect_with_notice($redirect, 'reminder_invalid_status');
     }
 
-    $success = peracrm_reminder_update_status($reminder_id, $status, get_current_user_id());
+    $success = peracrm_reminder_update_status($reminder_id, $status, get_current_user_id(), $client_id);
     if (!$success) {
         peracrm_admin_redirect_with_notice($redirect, 'reminder_failed');
     }
