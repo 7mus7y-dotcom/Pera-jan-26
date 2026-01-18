@@ -5,6 +5,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once PERACRM_INC . '/admin/pages/work-queue.php';
+require_once PERACRM_INC . '/admin/pages/client-view.php';
 
 function peracrm_register_admin_menu()
 {
@@ -35,6 +36,15 @@ function peracrm_register_admin_menu()
         'edit_crm_clients',
         'peracrm-work-queue',
         'peracrm_render_work_queue_page'
+    );
+
+    add_submenu_page(
+        $parent_slug,
+        'Client View',
+        'Client View',
+        'edit_crm_clients',
+        'peracrm-client-view',
+        'peracrm_render_client_view_page'
     );
 }
 
