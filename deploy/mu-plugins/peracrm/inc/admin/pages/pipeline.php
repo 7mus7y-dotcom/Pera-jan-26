@@ -219,13 +219,13 @@ function peracrm_render_pipeline_page()
     $all_query_ids = array_values(array_unique($all_query_ids));
     if (!empty($all_query_ids)) {
         update_meta_cache('post', $all_query_ids);
-        if (function_exists('peracrm_client_health_prime_cache')) {
+        if ($has_activity_table && function_exists('peracrm_client_health_prime_cache')) {
             peracrm_client_health_prime_cache($all_query_ids);
         }
     }
 
     $health_map = [];
-    if (function_exists('peracrm_client_health_get')) {
+    if ($has_activity_table && function_exists('peracrm_client_health_get')) {
         foreach ($all_query_ids as $client_id) {
             $health_map[$client_id] = peracrm_client_health_get($client_id);
         }
