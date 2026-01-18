@@ -48,6 +48,18 @@ add_action('admin_init', function () {
     peracrm_maybe_upgrade_schema();
 });
 
+add_action('init', function () {
+    if (!is_user_logged_in()) {
+        return;
+    }
+
+    if (!current_user_can('manage_options') && !current_user_can('edit_crm_clients')) {
+        return;
+    }
+
+    peracrm_maybe_upgrade_schema();
+}, 5);
+
 add_action('admin_init', function () {
     if (!current_user_can('manage_options')) {
         return;

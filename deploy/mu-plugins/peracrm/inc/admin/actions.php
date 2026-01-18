@@ -98,6 +98,7 @@ function peracrm_admin_get_client_linked_user_id($client_id)
         if (null !== $row) {
             return (int) $row->linked_user_id;
         }
+        return 0;
     }
 
     return (int) get_post_meta($client_id, 'linked_user_id', true);
@@ -106,7 +107,7 @@ function peracrm_admin_get_client_linked_user_id($client_id)
 function peracrm_admin_find_linked_user_id($client_id)
 {
     $linked_user_id = peracrm_admin_get_client_linked_user_id($client_id);
-    if ($linked_user_id > 0) {
+    if ($linked_user_id > 0 || peracrm_admin_client_table_has_linked_user_column()) {
         return $linked_user_id;
     }
 
@@ -836,7 +837,7 @@ function peracrm_admin_render_client_columns($column, $post_id)
             $linked_user_id = $linked_user_cache[$post_id];
         } else {
             $linked_user_id = peracrm_admin_get_client_linked_user_id($post_id);
-            if ($linked_user_id <= 0) {
+            if ($linked_user_id <= 0 && !peracrm_admin_client_table_has_linked_user_column()) {
                 $users = get_users([
                     'meta_key' => 'crm_client_id',
                     'meta_value' => (int) $post_id,
