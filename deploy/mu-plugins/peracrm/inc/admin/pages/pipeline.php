@@ -4,47 +4,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function peracrm_pipeline_status_labels()
-{
-    return [
-        'enquiry' => 'Enquiry',
-        'active' => 'Active',
-        'dormant' => 'Dormant',
-        'closed' => 'Closed',
-    ];
-}
-
-function peracrm_pipeline_client_type_options()
-{
-    return [
-        'all' => 'All types',
-        'citizenship' => 'Citizenship',
-        'investor' => 'Investor',
-        'lifestyle' => 'Lifestyle',
-    ];
-}
-
-function peracrm_pipeline_health_options()
-{
-    return [
-        'all' => 'All health',
-        'hot' => 'Hot',
-        'warm' => 'Warm',
-        'cold' => 'Cold',
-        'at_risk' => 'At risk',
-        'none' => 'None',
-    ];
-}
-
-function peracrm_pipeline_assigned_meta_keys()
-{
-    if (function_exists('peracrm_admin_work_queue_assigned_meta_keys')) {
-        return peracrm_admin_work_queue_assigned_meta_keys();
-    }
-
-    return ['assigned_advisor_user_id', 'crm_assigned_advisor'];
-}
-
 function peracrm_render_pipeline_page()
 {
     if (!peracrm_admin_user_can_manage()) {
@@ -149,6 +108,67 @@ function peracrm_render_pipeline_page()
     $per_page = 10;
     $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
     $has_reminders_table = function_exists('peracrm_reminders_table_exists') && peracrm_reminders_table_exists();
+    $recent_events = [];
+    $recent_payloads = [];
+    $recent_client_map = [];
+    $recent_user_map = [];
+
+    if ($has_activity_table && function_exists('peracrm_activity_list_recent_pipeline')) {
+        $recent_scope = $is_admin ? $advisor_id : get_current_user_id();
+        $recent_events = peracrm_activity_list_recent_pipeline(20, $recent_scope);
+        if (!empty($recent_events)) {
+            $client_ids = [];
+            $user_ids = [];
+            $index = 0;
+            foreach ($recent_events as $event) {
+                $client_ids[] = isset($event['client_id']) ? (int) $event['client_id'] : 0;
+                $payload = !empty($event['event_payload']) ? peracrm_json_decode($event['event_payload']) : [];
+                $recent_payloads[$index] = is_array($payload) ? $payload : [];
+
+                $actor_id = 0;
+                if (!empty($payload['actor_user_id'])) {
+                    $actor_id = (int) $payload['actor_user_id'];
+                } elseif (!empty($payload['advisor_user_id'])) {
+                    $actor_id = (int) $payload['advisor_user_id'];
+                }
+                if ($actor_id > 0) {
+                    $user_ids[] = $actor_id;
+                }
+                if (isset($payload['from']) && is_numeric($payload['from'])) {
+                    $user_ids[] = (int) $payload['from'];
+                }
+                if (isset($payload['to']) && is_numeric($payload['to'])) {
+                    $user_ids[] = (int) $payload['to'];
+                }
+
+                $index++;
+            }
+
+            $client_ids = array_values(array_unique(array_filter($client_ids)));
+            if (!empty($client_ids)) {
+                $clients = get_posts([
+                    'post_type' => 'crm_client',
+                    'post_status' => 'any',
+                    'include' => $client_ids,
+                    'numberposts' => count($client_ids),
+                ]);
+                foreach ($clients as $client) {
+                    $recent_client_map[(int) $client->ID] = $client->post_title;
+                }
+            }
+
+            $user_ids = array_values(array_unique(array_filter($user_ids)));
+            if (!empty($user_ids)) {
+                $users = get_users([
+                    'include' => $user_ids,
+                    'fields' => ['ID', 'display_name'],
+                ]);
+                foreach ($users as $user) {
+                    $recent_user_map[(int) $user->ID] = $user->display_name;
+                }
+            }
+        }
+    }
 
     echo '<div class="wrap peracrm-pipeline">';
     echo '<h1>Pipeline</h1>';
@@ -199,6 +219,103 @@ function peracrm_render_pipeline_page()
         echo esc_html('Reminders data unavailable. Counts will display as 0 or —.');
         echo '</p></div>';
     }
+
+    echo '<div class="card peracrm-pipeline-recent">';
+    echo '<h2>Recent Pipeline Changes</h2>';
+    if (!$has_activity_table) {
+        echo '<p>' . esc_html('Activity tracking unavailable.') . '</p>';
+    } elseif (empty($recent_events)) {
+        echo '<p>' . esc_html('No recent pipeline changes.') . '</p>';
+    } else {
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th>' . esc_html('Time') . '</th>';
+        echo '<th>' . esc_html('Client') . '</th>';
+        echo '<th>' . esc_html('Event') . '</th>';
+        echo '<th>' . esc_html('Actor') . '</th>';
+        echo '<th>' . esc_html('Details') . '</th>';
+        echo '</tr></thead><tbody>';
+        $status_labels = peracrm_pipeline_status_labels();
+        $now_ts = current_time('timestamp');
+        foreach ($recent_events as $index => $event) {
+            $created_at = isset($event['created_at']) ? (string) $event['created_at'] : '';
+            $timestamp = $created_at ? strtotime($created_at) : 0;
+            $relative = $timestamp ? human_time_diff($timestamp, $now_ts) . ' ago' : '—';
+
+            $client_id = isset($event['client_id']) ? (int) $event['client_id'] : 0;
+            $client_title = $client_id && isset($recent_client_map[$client_id])
+                ? $recent_client_map[$client_id]
+                : ($client_id ? 'Client #' . $client_id : '—');
+            $view_link = $client_id && function_exists('peracrm_render_client_view_page')
+                ? add_query_arg(
+                    [
+                        'page' => 'peracrm-client-view',
+                        'client_id' => $client_id,
+                    ],
+                    admin_url('admin.php')
+                )
+                : '';
+            $client_link = $view_link ?: ($client_id ? get_edit_post_link($client_id, '') : '');
+
+            $event_type = isset($event['event_type']) ? (string) $event['event_type'] : '';
+            $event_label = function_exists('peracrm_admin_activity_label')
+                ? peracrm_admin_activity_label($event_type)
+                : ($event_type !== '' ? ucfirst(str_replace('_', ' ', $event_type)) : 'Activity');
+
+            $payload = isset($recent_payloads[$index]) ? $recent_payloads[$index] : [];
+            $actor_id = 0;
+            if (!empty($payload['actor_user_id'])) {
+                $actor_id = (int) $payload['actor_user_id'];
+            } elseif (!empty($payload['advisor_user_id'])) {
+                $actor_id = (int) $payload['advisor_user_id'];
+            }
+            $actor_label = $actor_id && isset($recent_user_map[$actor_id]) ? $recent_user_map[$actor_id] : '—';
+
+            $detail = '—';
+            if ('status_changed' === $event_type) {
+                $from_key = isset($payload['from']) ? (string) $payload['from'] : '';
+                $to_key = isset($payload['to']) ? (string) $payload['to'] : '';
+                $from_label = $from_key !== '' && isset($status_labels[$from_key]) ? $status_labels[$from_key] : $from_key;
+                $to_label = $to_key !== '' && isset($status_labels[$to_key]) ? $status_labels[$to_key] : $to_key;
+                if ($from_label || $to_label) {
+                    $detail = trim($from_label) !== '' || trim($to_label) !== ''
+                        ? sprintf('%s → %s', $from_label ?: '—', $to_label ?: '—')
+                        : '—';
+                }
+                if (!empty($payload['context']) && 'pipeline_bulk' === $payload['context']) {
+                    $detail = $detail !== '—' ? $detail . ' (Bulk update)' : 'Bulk update';
+                }
+            } elseif ('advisor_reassigned' === $event_type) {
+                $from_id = isset($payload['from']) ? (int) $payload['from'] : 0;
+                $to_id = isset($payload['to']) ? (int) $payload['to'] : 0;
+                $from_label = $from_id && isset($recent_user_map[$from_id]) ? $recent_user_map[$from_id] : ($from_id ? 'User #' . $from_id : '—');
+                $to_label = $to_id && isset($recent_user_map[$to_id]) ? $recent_user_map[$to_id] : ($to_id ? 'User #' . $to_id : '—');
+                $detail = sprintf('%s → %s', $from_label, $to_label);
+            } elseif ('reminder_added' === $event_type) {
+                if (!empty($payload['due_at'])) {
+                    $detail = 'Due ' . mysql2date('Y-m-d H:i', $payload['due_at']);
+                } else {
+                    $detail = 'Reminder added';
+                }
+            }
+
+            echo '<tr>';
+            echo '<td>' . esc_html($relative) . '</td>';
+            echo '<td>';
+            if ($client_link) {
+                echo '<a href="' . esc_url($client_link) . '">' . esc_html($client_title) . '</a>';
+            } else {
+                echo esc_html($client_title);
+            }
+            echo '</td>';
+            echo '<td>' . esc_html($event_label) . '</td>';
+            echo '<td>' . esc_html($actor_label) . '</td>';
+            echo '<td>' . esc_html($detail) . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    }
+    echo '</div>';
 
     echo '<div class="peracrm-pipeline-views">';
     echo '<form method="get" class="peracrm-pipeline-views__form">';
@@ -303,42 +420,30 @@ function peracrm_render_pipeline_page()
     echo '</label>';
     echo '</form>';
 
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-pipeline-export">';
+    echo '<input type="hidden" name="action" value="peracrm_pipeline_export_csv" />';
+    wp_nonce_field('peracrm_pipeline_export_csv');
+    echo '<input type="hidden" name="view_id" value="' . esc_attr($active_view_id) . '" />';
+    echo '<input type="hidden" name="client_type" value="' . esc_attr($client_type) . '" />';
+    echo '<input type="hidden" name="health" value="' . esc_attr($health_filter) . '" />';
+    echo '<input type="hidden" name="advisor_id" value="' . esc_attr($advisor_id) . '" />';
+    echo '<input type="hidden" name="hide_empty_columns" value="' . esc_attr($hide_empty_columns) . '" />';
+    echo '<button type="submit" class="button">Export CSV</button>';
+    echo '</form>';
+
     $columns = [];
     $all_query_ids = [];
-    $meta_keys = peracrm_pipeline_assigned_meta_keys();
 
     foreach ($statuses as $status_key => $status_label) {
         $paged_param = 'paged_' . $status_key;
         $paged = isset($_GET[$paged_param]) ? max(1, absint($_GET[$paged_param])) : 1;
 
-        $meta_query = [
-            'relation' => 'AND',
-            [
-                'key' => '_peracrm_status',
-                'value' => $status_key,
-                'compare' => '=',
-            ],
+        $meta_query = peracrm_pipeline_build_base_meta_query($client_type, $scope_advisor_id);
+        $meta_query[] = [
+            'key' => '_peracrm_status',
+            'value' => $status_key,
+            'compare' => '=',
         ];
-
-        if ($client_type !== 'all') {
-            $meta_query[] = [
-                'key' => '_peracrm_client_type',
-                'value' => $client_type,
-                'compare' => '=',
-            ];
-        }
-
-        if ($scope_advisor_id > 0 && !empty($meta_keys)) {
-            $assigned_query = ['relation' => 'OR'];
-            foreach ($meta_keys as $meta_key) {
-                $assigned_query[] = [
-                    'key' => $meta_key,
-                    'value' => $scope_advisor_id,
-                    'compare' => '=',
-                ];
-            }
-            $meta_query[] = $assigned_query;
-        }
 
         $query = new WP_Query([
             'post_type' => 'crm_client',
