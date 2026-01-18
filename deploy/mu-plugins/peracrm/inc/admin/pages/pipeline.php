@@ -472,13 +472,13 @@ function peracrm_render_pipeline_page()
                     $hints[] = ['label' => 'Overdue', 'class' => 'overdue'];
                 }
                 $due_soon_limit = $now_ts + (7 * DAY_IN_SECONDS);
-                if ($overdue === 0 && $due_ts && $due_ts >= $now_ts && $due_ts <= $due_soon_limit) {
+                if ($overdue === 0 && $open > 0 && $due_ts && $due_ts >= $now_ts && $due_ts <= $due_soon_limit) {
                     $hints[] = ['label' => 'Due soon', 'class' => 'due-soon'];
                 }
                 if ($has_activity_table && $last_activity_ts > 0 && $last_activity_ts < ($now_ts - (30 * DAY_IN_SECONDS))) {
                     $hints[] = ['label' => 'No activity', 'class' => 'no-activity'];
                 }
-                if ($has_activity_table && $status_key === 'enquiry' && $last_activity_ts === 0 && $open === 0) {
+                if ($has_activity_table && $status_key === 'enquiry' && $last_activity_ts === 0 && $open === 0 && $overdue === 0) {
                     $hints[] = ['label' => 'New enquiry', 'class' => 'new-enquiry'];
                 }
 
