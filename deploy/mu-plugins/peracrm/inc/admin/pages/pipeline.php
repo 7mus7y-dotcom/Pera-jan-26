@@ -152,6 +152,23 @@ function peracrm_render_pipeline_page()
     echo '<div class="wrap peracrm-pipeline">';
     echo '<h1>Pipeline</h1>';
 
+    if (isset($_GET['peracrm_notice'])) {
+        $notice = sanitize_key(wp_unslash($_GET['peracrm_notice']));
+        $notice_messages = [
+            'stage_moved' => ['success', 'Client stage updated.'],
+            'stage_denied' => ['error', 'You are not allowed to move this client.'],
+            'stage_invalid' => ['error', 'Please choose a valid pipeline stage.'],
+        ];
+        if (isset($notice_messages[$notice])) {
+            [$class, $message] = $notice_messages[$notice];
+            printf(
+                '<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>',
+                esc_attr($class),
+                esc_html($message)
+            );
+        }
+    }
+
     if (!$has_reminders_table) {
         echo '<div class="notice notice-warning is-dismissible"><p>';
         echo esc_html('Reminders data unavailable. Counts will display as 0 or —.');
@@ -517,6 +534,37 @@ function peracrm_render_pipeline_page()
                     echo '<div><strong>Advisor:</strong> ' . esc_html($assigned_label) . '</div>';
                 }
                 echo '</div>';
+                $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+                $assigned_id = function_exists('peracrm_client_get_assigned_advisor_id')
+                    ? (int) peracrm_client_get_assigned_advisor_id($client_id)
+                    : 0;
+                $is_assigned_advisor = $assigned_id > 0 && $assigned_id === get_current_user_id();
+                $can_move = current_user_can('edit_post', $client_id) && ($can_override || $is_assigned_advisor);
+                if ($can_move) {
+                    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="peracrm-pipeline-card__move">';
+                    echo '<input type="hidden" name="action" value="peracrm_pipeline_move_stage" />';
+                    wp_nonce_field('peracrm_pipeline_move_stage');
+                    echo '<input type="hidden" name="client_id" value="' . esc_attr($client_id) . '" />';
+                    echo '<input type="hidden" name="from_status" value="' . esc_attr($status_key) . '" />';
+                    foreach ($base_params as $param_key => $param_value) {
+                        echo '<input type="hidden" name="' . esc_attr($param_key) . '" value="' . esc_attr($param_value) . '" />';
+                    }
+                    echo '<label class="screen-reader-text" for="peracrm-move-' . esc_attr($client_id) . '">Move to</label>';
+                    echo '<select name="to_status" id="peracrm-move-' . esc_attr($client_id) . '">';
+                    foreach ($statuses as $move_key => $move_label) {
+                        if ($move_key === $status_key) {
+                            continue;
+                        }
+                        printf(
+                            '<option value="%1$s">%2$s</option>',
+                            esc_attr($move_key),
+                            esc_html($move_label)
+                        );
+                    }
+                    echo '</select>';
+                    echo '<button type="submit" class="button button-small">Move</button>';
+                    echo '</form>';
+                }
                 echo '</div>';
             }
         }

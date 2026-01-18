@@ -452,6 +452,76 @@ function peracrm_handle_pipeline_delete_view()
     peracrm_admin_redirect_with_notice($redirect, 'pipeline_view_deleted');
 }
 
+function peracrm_handle_pipeline_move_stage()
+{
+    if (!is_user_logged_in()) {
+        wp_die('Unauthorized');
+    }
+
+    check_admin_referer('peracrm_pipeline_move_stage');
+
+    $client_id = isset($_POST['client_id']) ? absint($_POST['client_id']) : 0;
+    $client = peracrm_admin_get_client($client_id);
+    if (!$client) {
+        wp_die('Invalid client');
+    }
+
+    $filters = peracrm_pipeline_sanitize_view_filters(wp_unslash($_POST), current_user_can('manage_options'));
+    $view_id = isset($_POST['view_id']) ? sanitize_text_field(wp_unslash($_POST['view_id'])) : '';
+    if ($view_id !== '') {
+        $filters['view_id'] = $view_id;
+    }
+    $redirect = peracrm_pipeline_build_base_url($filters);
+
+    if (!current_user_can('edit_post', $client_id)) {
+        peracrm_admin_redirect_with_notice($redirect, 'stage_denied');
+    }
+
+    $allowed_statuses = ['enquiry', 'active', 'dormant', 'closed'];
+    $to_status = isset($_POST['to_status']) ? sanitize_key(wp_unslash($_POST['to_status'])) : '';
+    if (!in_array($to_status, $allowed_statuses, true)) {
+        peracrm_admin_redirect_with_notice($redirect, 'stage_invalid');
+    }
+
+    $can_override = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+    if (!$can_override) {
+        if (!function_exists('peracrm_client_get_assigned_advisor_id')) {
+            peracrm_admin_redirect_with_notice($redirect, 'stage_denied');
+        }
+        $assigned_id = (int) peracrm_client_get_assigned_advisor_id($client_id);
+        if ($assigned_id <= 0 || $assigned_id !== get_current_user_id()) {
+            peracrm_admin_redirect_with_notice($redirect, 'stage_denied');
+        }
+    }
+
+    $from_status = sanitize_key(get_post_meta($client_id, '_peracrm_status', true));
+    if (!in_array($from_status, $allowed_statuses, true)) {
+        $from_status = 'unknown';
+    }
+    if ($from_status === $to_status) {
+        peracrm_admin_redirect_with_notice($redirect, 'stage_invalid');
+    }
+
+    update_post_meta($client_id, '_peracrm_status', $to_status);
+
+    $can_log = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    if ($can_log && function_exists('peracrm_activity_insert')) {
+        $payload = [
+            'from' => $from_status,
+            'to' => $to_status,
+            'actor_user_id' => get_current_user_id(),
+            'context' => 'pipeline',
+        ];
+        if (function_exists('peracrm_log_event')) {
+            peracrm_log_event($client_id, 'status_changed', $payload);
+        } else {
+            peracrm_activity_insert($client_id, 'status_changed', $payload);
+        }
+    }
+
+    peracrm_admin_redirect_with_notice($redirect, 'stage_moved');
+}
+
 function peracrm_handle_link_user()
 {
     $client_id = isset($_POST['peracrm_client_id']) ? (int) $_POST['peracrm_client_id'] : 0;
