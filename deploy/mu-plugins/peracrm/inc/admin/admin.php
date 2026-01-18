@@ -22,6 +22,7 @@ add_action('admin_post_peracrm_save_client_profile', 'peracrm_handle_save_client
 add_action('admin_post_peracrm_reassign_client_advisor', 'peracrm_handle_reassign_client_advisor');
 add_action('admin_post_peracrm_pipeline_save_view', 'peracrm_handle_pipeline_save_view');
 add_action('admin_post_peracrm_pipeline_delete_view', 'peracrm_handle_pipeline_delete_view');
+add_action('admin_post_peracrm_pipeline_move_stage', 'peracrm_handle_pipeline_move_stage');
 
 add_action('admin_notices', 'peracrm_admin_notices');
 add_action('admin_enqueue_scripts', 'peracrm_admin_enqueue_assets');
