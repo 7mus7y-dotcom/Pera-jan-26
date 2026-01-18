@@ -395,7 +395,7 @@ function peracrm_handle_mark_reminder_done()
     }
 
     $actor_id = get_current_user_id();
-    $is_admin = peracrm_admin_user_can_manage();
+    $is_admin = current_user_can('manage_options') || current_user_can('peracrm_manage_all_reminders');
     $advisor_id = isset($reminder['advisor_user_id']) ? (int) $reminder['advisor_user_id'] : 0;
     if (!$is_admin && $advisor_id !== $actor_id) {
         wp_die('Unauthorized');
@@ -435,7 +435,7 @@ function peracrm_handle_update_reminder_status()
     }
 
     $actor_id = get_current_user_id();
-    $is_admin = peracrm_admin_user_can_manage();
+    $is_admin = current_user_can('manage_options') || current_user_can('peracrm_manage_all_reminders');
     $advisor_id = isset($reminder['advisor_user_id']) ? (int) $reminder['advisor_user_id'] : 0;
     if (!$is_admin && $advisor_id !== $actor_id) {
         wp_die('Unauthorized');
