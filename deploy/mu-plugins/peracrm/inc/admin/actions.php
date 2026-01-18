@@ -791,7 +791,7 @@ function peracrm_handle_pipeline_bulk_action()
     peracrm_pipeline_bulk_redirect($redirect, $action_key, $done, $failed, $capped);
 }
 
-function peracrm_pipeline_export_csv_escape($value)
+function peracrm_csv_safe_cell($value)
 {
     if (!is_string($value)) {
         return $value;
@@ -806,6 +806,8 @@ function peracrm_pipeline_export_csv_escape($value)
 
 function peracrm_handle_pipeline_export_csv()
 {
+    check_admin_referer('peracrm_pipeline_export_csv');
+
     if (!is_user_logged_in()) {
         wp_die('Unauthorized');
     }
@@ -813,8 +815,6 @@ function peracrm_handle_pipeline_export_csv()
     if (!current_user_can('edit_crm_clients')) {
         wp_die('Unauthorized');
     }
-
-    check_admin_referer('peracrm_pipeline_export_csv');
 
     $is_admin = current_user_can('manage_options');
     $can_manage_all = $is_admin || current_user_can('peracrm_manage_all_clients');
@@ -1010,15 +1010,15 @@ function peracrm_handle_pipeline_export_csv()
 
         fputcsv($output, [
             $client_id,
-            peracrm_pipeline_export_csv_escape($client_name),
+            peracrm_csv_safe_cell($client_name),
             $status,
             $client_type_value,
             $assigned_id,
-            $assigned_name,
+            peracrm_csv_safe_cell($assigned_name),
             $budget_min,
             $budget_max,
-            peracrm_pipeline_export_csv_escape($phone),
-            peracrm_pipeline_export_csv_escape($email),
+            peracrm_csv_safe_cell($phone),
+            peracrm_csv_safe_cell($email),
             $health_label,
             $last_activity,
             $open,
