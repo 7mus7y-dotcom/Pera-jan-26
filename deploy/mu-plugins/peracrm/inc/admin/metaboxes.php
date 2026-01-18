@@ -56,6 +56,15 @@ function peracrm_register_metaboxes($post_type, $post)
         'side',
         'default'
     );
+
+    add_meta_box(
+        'peracrm_client_health',
+        'Client Health',
+        'peracrm_render_client_health_metabox',
+        'crm_client',
+        'side',
+        'default'
+    );
 }
 
 function peracrm_render_notes_metabox($post)
@@ -227,6 +236,54 @@ function peracrm_render_reminders_metabox($post)
     echo '<p><button type="submit" class="button button-primary">Add Reminder</button></p>';
     echo '</form>';
 
+    echo '</div>';
+}
+
+function peracrm_render_client_health_metabox($post)
+{
+    if (!peracrm_admin_user_can_manage()) {
+        echo '<p>You do not have permission to view client health.</p>';
+        return;
+    }
+
+    if (!function_exists('peracrm_client_health_get')) {
+        echo '<p class="peracrm-empty">Health data unavailable.</p>';
+        return;
+    }
+
+    $health = peracrm_client_health_get($post->ID);
+    $badge = function_exists('peracrm_client_health_badge_html')
+        ? peracrm_client_health_badge_html($health)
+        : esc_html(isset($health['label']) ? $health['label'] : 'None');
+
+    $last_activity_ts = isset($health['last_activity_ts']) ? (int) $health['last_activity_ts'] : 0;
+    $last_activity = $last_activity_ts
+        ? human_time_diff($last_activity_ts, current_time('timestamp')) . ' ago'
+        : 'No activity recorded.';
+    $last_activity_title = $last_activity_ts
+        ? wp_date(get_option('date_format') . ' ' . get_option('time_format'), $last_activity_ts)
+        : '';
+
+    $open_reminders = isset($health['open_reminders']) ? (int) $health['open_reminders'] : 0;
+    $overdue_reminders = isset($health['overdue_reminders']) ? (int) $health['overdue_reminders'] : 0;
+    $explain = isset($health['explain']) ? $health['explain'] : '';
+
+    echo '<div class="peracrm-metabox">';
+    echo '<p>' . $badge . '</p>';
+    if ($explain !== '') {
+        echo '<p>' . esc_html($explain) . '</p>';
+    }
+    echo '<ul class="peracrm-list">';
+    echo '<li><strong>Last activity:</strong> ';
+    if ($last_activity_title) {
+        echo '<span title="' . esc_attr($last_activity_title) . '">' . esc_html($last_activity) . '</span>';
+    } else {
+        echo esc_html($last_activity);
+    }
+    echo '</li>';
+    echo '<li><strong>Open reminders:</strong> ' . esc_html((string) $open_reminders) . '</li>';
+    echo '<li><strong>Overdue reminders:</strong> ' . esc_html((string) $overdue_reminders) . '</li>';
+    echo '</ul>';
     echo '</div>';
 }
 

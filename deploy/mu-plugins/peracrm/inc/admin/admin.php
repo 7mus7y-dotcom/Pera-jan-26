@@ -28,3 +28,4 @@ add_filter('manage_edit-crm_client_sortable_columns', 'peracrm_admin_client_sort
 add_action('restrict_manage_posts', 'peracrm_admin_client_filters');
 add_action('pre_get_posts', 'peracrm_admin_client_list_query');
 add_filter('posts_clauses', 'peracrm_admin_client_list_clauses', 10, 2);
+add_filter('posts_results', 'peracrm_admin_prime_client_health_cache', 10, 2);

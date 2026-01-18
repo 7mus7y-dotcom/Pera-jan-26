@@ -158,105 +158,6 @@ function peracrm_admin_update_client_linked_user_id($client_id, $user_id)
     return true;
 }
 
-function peracrm_admin_client_table_has_linked_user_column()
-{
-    static $has_column = null;
-
-    if (null !== $has_column) {
-        return $has_column;
-    }
-
-    global $wpdb;
-
-    $table = peracrm_table('crm_client');
-    $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
-    if (!$table_exists) {
-        $has_column = false;
-        return $has_column;
-    }
-
-    $column = $wpdb->get_col("SHOW COLUMNS FROM {$table} LIKE 'linked_user_id'");
-    $has_column = !empty($column);
-
-    return $has_column;
-}
-
-function peracrm_admin_get_client_linked_user_id($client_id)
-{
-    $client_id = (int) $client_id;
-    if ($client_id <= 0) {
-        return 0;
-    }
-
-    if (peracrm_admin_client_table_has_linked_user_column()) {
-        global $wpdb;
-        $table = peracrm_table('crm_client');
-        $row = $wpdb->get_row(
-            $wpdb->prepare("SELECT linked_user_id FROM {$table} WHERE id = %d", $client_id)
-        );
-        if (null !== $row) {
-            return (int) $row->linked_user_id;
-        }
-    }
-
-    return (int) get_post_meta($client_id, 'linked_user_id', true);
-}
-
-function peracrm_admin_find_linked_user_id($client_id)
-{
-    $linked_user_id = peracrm_admin_get_client_linked_user_id($client_id);
-    if ($linked_user_id > 0) {
-        return $linked_user_id;
-    }
-
-    $users = get_users([
-        'meta_key' => 'crm_client_id',
-        'meta_value' => (int) $client_id,
-        'number' => 1,
-        'fields' => 'ids',
-    ]);
-
-    if (empty($users)) {
-        return 0;
-    }
-
-    return (int) $users[0];
-}
-
-function peracrm_admin_update_client_linked_user_id($client_id, $user_id)
-{
-    $client_id = (int) $client_id;
-    $user_id = (int) $user_id;
-    if ($client_id <= 0) {
-        return false;
-    }
-
-    if (peracrm_admin_client_table_has_linked_user_column()) {
-        global $wpdb;
-        $table = peracrm_table('crm_client');
-        $result = $wpdb->update(
-            $table,
-            ['linked_user_id' => $user_id > 0 ? $user_id : null],
-            ['id' => $client_id],
-            ['%d'],
-            ['%d']
-        );
-        if (false !== $result) {
-            if ($user_id <= 0) {
-                delete_post_meta($client_id, 'linked_user_id');
-            }
-            return true;
-        }
-    }
-
-    if ($user_id > 0) {
-        return (bool) update_post_meta($client_id, 'linked_user_id', $user_id);
-    }
-
-    delete_post_meta($client_id, 'linked_user_id');
-    return true;
-}
-
 function peracrm_admin_parse_datetime($raw_datetime)
 {
     $raw_datetime = sanitize_text_field($raw_datetime);
@@ -621,6 +522,7 @@ function peracrm_admin_notices()
 function peracrm_admin_add_client_columns($columns)
 {
     $columns['peracrm_account'] = 'Account';
+    $columns['peracrm_health'] = 'Health';
     $columns['last_activity'] = 'Last activity';
     return $columns;
 }
@@ -658,6 +560,28 @@ function peracrm_admin_client_filters()
         );
     }
     echo '</select>';
+
+    $health_selected = peracrm_admin_get_health_filter();
+    $health_options = [
+        '' => 'All health',
+        'hot' => 'Hot',
+        'warm' => 'Warm',
+        'cold' => 'Cold',
+        'at_risk' => 'At risk',
+        'none' => 'None',
+    ];
+
+    echo '<label for="peracrm-health-filter" class="screen-reader-text">Health</label>';
+    echo '<select name="peracrm_health" id="peracrm-health-filter">';
+    foreach ($health_options as $value => $label) {
+        printf(
+            '<option value="%1$s"%2$s>%3$s</option>',
+            esc_attr($value),
+            selected($health_selected, $value, false),
+            esc_html($label)
+        );
+    }
+    echo '</select>';
 }
 
 function peracrm_admin_client_list_query($query)
@@ -665,6 +589,21 @@ function peracrm_admin_client_list_query($query)
     $context = peracrm_admin_client_list_context($query);
     if (!$context['is_client_list']) {
         return;
+    }
+
+    if ($context['health'] !== '') {
+        if (!$context['has_reminders_table'] && in_array($context['health'], ['at_risk', 'hot'], true)) {
+            $query->set('post__in', [0]);
+            return;
+        }
+        if (!$context['has_activity_table'] && in_array($context['health'], ['hot', 'warm'], true)) {
+            $query->set('post__in', [0]);
+            return;
+        }
+        if (!$context['has_activity_table'] && !$context['has_reminders_table'] && 'none' !== $context['health']) {
+            $query->set('post__in', [0]);
+            return;
+        }
     }
 
     if (!$context['has_activity_table'] && 'none' === $context['engagement']) {
@@ -679,38 +618,87 @@ function peracrm_admin_client_list_clauses($clauses, $query)
         return $clauses;
     }
 
-    if (!$context['has_activity_table']) {
-        return $clauses;
-    }
-
-    if ('last_activity' !== $context['orderby'] && $context['engagement'] === '') {
-        return $clauses;
-    }
-
     global $wpdb;
 
-    $activity_table = peracrm_table('crm_activity');
+    $needs_activity = $context['has_activity_table'] && ('last_activity' === $context['orderby'] || $context['engagement'] !== '' || $context['health'] !== '');
+    $needs_reminders = $context['health'] !== '' && $context['has_reminders_table'];
+
     $activity_alias = 'peracrm_activity';
-
-    if (false === strpos($clauses['join'], " {$activity_table} ")) {
-        $clauses['join'] .= " LEFT JOIN {$activity_table} AS {$activity_alias} ON {$wpdb->posts}.ID = {$activity_alias}.client_id";
+    if ($needs_activity) {
+        $activity_table = peracrm_table('crm_activity');
+        if (false === strpos($clauses['join'], " {$activity_table} ")) {
+            $clauses['join'] .= " LEFT JOIN {$activity_table} AS {$activity_alias} ON {$wpdb->posts}.ID = {$activity_alias}.client_id";
+        }
     }
 
-    if (false === strpos($clauses['fields'], 'peracrm_last_activity_at')) {
-        $clauses['fields'] .= ", MAX({$activity_alias}.created_at) AS peracrm_last_activity_at";
+    $reminders_alias = 'peracrm_reminders';
+    if ($needs_reminders) {
+        $reminders_table = peracrm_table('crm_reminders');
+        $now_mysql = current_time('mysql');
+        $reminders_subquery = $wpdb->prepare(
+            "(SELECT client_id,
+                     SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) AS open_count,
+                     SUM(CASE WHEN status = %s AND due_at < %s THEN 1 ELSE 0 END) AS overdue_count
+              FROM {$reminders_table}
+              GROUP BY client_id) AS {$reminders_alias}",
+            'pending',
+            'pending',
+            $now_mysql
+        );
+        if (false === strpos($clauses['join'], " {$reminders_alias}")) {
+            $clauses['join'] .= " LEFT JOIN {$reminders_subquery} ON {$wpdb->posts}.ID = {$reminders_alias}.client_id";
+        }
     }
 
-    if (empty($clauses['groupby'])) {
-        $clauses['groupby'] = "{$wpdb->posts}.ID";
-    } elseif (false === strpos($clauses['groupby'], "{$wpdb->posts}.ID")) {
-        $clauses['groupby'] .= ", {$wpdb->posts}.ID";
+    $last_activity_expr = $needs_activity ? "MAX({$activity_alias}.created_at)" : 'NULL';
+    $open_expr = $needs_reminders ? "COALESCE({$reminders_alias}.open_count, 0)" : '0';
+    $overdue_expr = $needs_reminders ? "COALESCE({$reminders_alias}.overdue_count, 0)" : '0';
+
+    if ($needs_activity && false === strpos($clauses['fields'], 'peracrm_last_activity_at')) {
+        $clauses['fields'] .= ", {$last_activity_expr} AS peracrm_last_activity_at";
+    }
+    if ($context['health'] !== '') {
+        if (false === strpos($clauses['fields'], 'peracrm_open_reminders')) {
+            $clauses['fields'] .= ", {$open_expr} AS peracrm_open_reminders";
+            $clauses['fields'] .= ", {$overdue_expr} AS peracrm_overdue_reminders";
+        }
+
+        $now = current_time('timestamp');
+        $seven_days = wp_date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 7);
+        $fourteen_days = wp_date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 14);
+        $thirty_days = wp_date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 30);
+
+        $case_expr = $wpdb->prepare(
+            "CASE
+                WHEN {$overdue_expr} > 0 THEN 'at_risk'
+                WHEN {$last_activity_expr} >= %s AND {$open_expr} > 0 AND {$overdue_expr} = 0 THEN 'hot'
+                WHEN {$last_activity_expr} >= %s AND {$overdue_expr} = 0 THEN 'warm'
+                WHEN {$last_activity_expr} < %s OR ({$last_activity_expr} IS NULL AND {$open_expr} > 0 AND {$overdue_expr} = 0) THEN 'cold'
+                ELSE 'none'
+            END",
+            $seven_days,
+            $fourteen_days,
+            $thirty_days
+        );
+
+        if (false === strpos($clauses['fields'], 'peracrm_health_key')) {
+            $clauses['fields'] .= ", {$case_expr} AS peracrm_health_key";
+        }
+    }
+
+    if ($needs_activity) {
+        if (empty($clauses['groupby'])) {
+            $clauses['groupby'] = "{$wpdb->posts}.ID";
+        } elseif (false === strpos($clauses['groupby'], "{$wpdb->posts}.ID")) {
+            $clauses['groupby'] .= ", {$wpdb->posts}.ID";
+        }
     }
 
     $having_conditions = [];
-    if ($context['engagement'] !== '') {
+    if ($context['engagement'] !== '' && $context['has_activity_table']) {
         $now = current_time('timestamp');
-        $seven_days = date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 7);
-        $thirty_days = date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 30);
+        $seven_days = wp_date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 7);
+        $thirty_days = wp_date('Y-m-d H:i:s', $now - DAY_IN_SECONDS * 30);
 
         if ('hot' === $context['engagement']) {
             $having_conditions[] = $wpdb->prepare('peracrm_last_activity_at >= %s', $seven_days);
@@ -724,17 +712,46 @@ function peracrm_admin_client_list_clauses($clauses, $query)
         }
     }
 
+    if ($context['health'] !== '') {
+        $having_conditions[] = $wpdb->prepare('peracrm_health_key = %s', $context['health']);
+    }
+
     if (!empty($having_conditions)) {
         $existing_having = trim($clauses['having']);
         $append_having = implode(' AND ', $having_conditions);
         $clauses['having'] = $existing_having === '' ? $append_having : "{$existing_having} AND {$append_having}";
     }
 
-    if ('last_activity' === $context['orderby']) {
+    if ('last_activity' === $context['orderby'] && $context['has_activity_table']) {
         $clauses['orderby'] = 'peracrm_last_activity_at IS NULL, peracrm_last_activity_at DESC';
     }
 
     return $clauses;
+}
+
+function peracrm_admin_prime_client_health_cache($posts, $query)
+{
+    $context = peracrm_admin_client_list_context($query);
+    if (!$context['is_client_list']) {
+        return $posts;
+    }
+
+    if (!function_exists('peracrm_client_health_prime_cache')) {
+        return $posts;
+    }
+
+    $client_ids = [];
+    foreach ($posts as $post) {
+        if ($post instanceof WP_Post) {
+            $client_ids[] = (int) $post->ID;
+        }
+    }
+
+    if (!empty($client_ids)) {
+        peracrm_client_health_prime_cache($client_ids);
+    }
+
+    return $posts;
 }
 
 function peracrm_admin_client_list_context($query)
@@ -760,13 +777,16 @@ function peracrm_admin_client_list_context($query)
     }
 
     $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    $has_reminders_table = function_exists('peracrm_reminders_table_exists') && peracrm_reminders_table_exists();
     $orderby = $query instanceof WP_Query ? sanitize_key($query->get('orderby')) : '';
 
     $cache[$key] = [
         'is_client_list' => $is_client_list,
         'has_activity_table' => $has_activity_table,
+        'has_reminders_table' => $has_reminders_table,
         'orderby' => $orderby,
         'engagement' => peracrm_admin_get_engagement_filter(),
+        'health' => peracrm_admin_get_health_filter(),
     ];
 
     return $cache[$key];
@@ -781,6 +801,23 @@ function peracrm_admin_get_engagement_filter()
 
     $value = isset($_GET['engagement']) ? sanitize_key(wp_unslash($_GET['engagement'])) : '';
     $allowed = ['hot', 'warm', 'cold', 'none'];
+    if (!in_array($value, $allowed, true)) {
+        $value = '';
+    }
+
+    $filter = $value;
+    return $filter;
+}
+
+function peracrm_admin_get_health_filter()
+{
+    static $filter = null;
+    if (null !== $filter) {
+        return $filter;
+    }
+
+    $value = isset($_GET['peracrm_health']) ? sanitize_key(wp_unslash($_GET['peracrm_health'])) : '';
+    $allowed = ['hot', 'warm', 'cold', 'at_risk', 'none'];
     if (!in_array($value, $allowed, true)) {
         $value = '';
     }
@@ -835,6 +872,22 @@ function peracrm_admin_render_client_columns($column, $post_id)
         }
 
         echo 'Linked: ' . $email;
+        return;
+    }
+
+    if ('peracrm_health' === $column) {
+        if (!function_exists('peracrm_client_health_get')) {
+            echo '&mdash;';
+            return;
+        }
+
+        $health = peracrm_client_health_get($post_id);
+        if (function_exists('peracrm_client_health_badge_html')) {
+            echo peracrm_client_health_badge_html($health);
+            return;
+        }
+
+        echo esc_html(isset($health['label']) ? $health['label'] : 'None');
         return;
     }
 

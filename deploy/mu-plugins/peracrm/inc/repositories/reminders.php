@@ -81,6 +81,93 @@ function peracrm_reminders_count_for_client($client_id, $status = null)
     return peracrm_reminders_count_for_client_fallback($client_id, $status);
 }
 
+function peracrm_reminders_count_open_by_client($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    static $cache = [];
+    if (isset($cache[$client_id])) {
+        return $cache[$client_id];
+    }
+
+    if (peracrm_reminders_table_exists()) {
+        global $wpdb;
+
+        $table = peracrm_table('crm_reminders');
+        $query = $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE client_id = %d AND status = %s",
+            $client_id,
+            'pending'
+        );
+
+        $count = (int) $wpdb->get_var($query);
+        $cache[$client_id] = $count;
+        return $count;
+    }
+
+    $reminders = peracrm_reminders_fallback_get($client_id);
+    $count = 0;
+    foreach ($reminders as $reminder) {
+        if (isset($reminder['status']) && $reminder['status'] === 'pending') {
+            $count++;
+        }
+    }
+
+    $cache[$client_id] = $count;
+    return $count;
+}
+
+function peracrm_reminders_count_overdue_by_client($client_id)
+{
+    $client_id = (int) $client_id;
+    if ($client_id <= 0) {
+        return 0;
+    }
+
+    static $cache = [];
+    if (isset($cache[$client_id])) {
+        return $cache[$client_id];
+    }
+
+    $now = current_time('timestamp');
+
+    if (peracrm_reminders_table_exists()) {
+        global $wpdb;
+
+        $table = peracrm_table('crm_reminders');
+        $now_mysql = wp_date('Y-m-d H:i:s', $now);
+        $query = $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE client_id = %d AND status = %s AND due_at < %s",
+            $client_id,
+            'pending',
+            $now_mysql
+        );
+
+        $count = (int) $wpdb->get_var($query);
+        $cache[$client_id] = $count;
+        return $count;
+    }
+
+    $reminders = peracrm_reminders_fallback_get($client_id);
+    $count = 0;
+    foreach ($reminders as $reminder) {
+        if (!isset($reminder['status']) || $reminder['status'] !== 'pending') {
+            continue;
+        }
+        $due_at = isset($reminder['due_at']) ? $reminder['due_at'] : '';
+        $due_ts = $due_at ? strtotime($due_at) : 0;
+        if ($due_ts && $due_ts < $now) {
+            $count++;
+        }
+    }
+
+    $cache[$client_id] = $count;
+    return $count;
+}
+
 function peracrm_reminders_list_for_advisor($advisor_user_id, $limit = 50, $offset = 0, $status = null, $range = null, $order = 'asc')
 {
     if (peracrm_reminders_table_exists()) {
