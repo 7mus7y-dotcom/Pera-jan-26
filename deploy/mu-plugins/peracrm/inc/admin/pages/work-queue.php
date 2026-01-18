@@ -15,12 +15,7 @@ function peracrm_admin_work_queue_get_assigned_advisor_id($client_id)
         return (int) peracrm_client_get_assigned_advisor_id($client_id);
     }
 
-    $advisor_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
-    if ($advisor_id > 0) {
-        return $advisor_id;
-    }
-
-    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+    return 0;
 }
 
 function peracrm_admin_work_queue_bucket_client_ids($bucket, $advisor_id, $has_activity_table, $has_reminders_table)
