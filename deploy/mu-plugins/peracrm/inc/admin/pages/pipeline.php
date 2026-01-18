@@ -172,6 +172,7 @@ function peracrm_render_pipeline_page()
 
     $bulk_done = isset($_GET['bulk_done']) ? absint($_GET['bulk_done']) : null;
     $bulk_failed = isset($_GET['bulk_failed']) ? absint($_GET['bulk_failed']) : null;
+    $bulk_capped = !empty($_GET['bulk_capped']);
     if (null !== $bulk_done || null !== $bulk_failed) {
         if (!empty($bulk_done)) {
             printf(
@@ -183,6 +184,12 @@ function peracrm_render_pipeline_page()
             printf(
                 '<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
                 esc_html(sprintf('%d clients skipped (not authorized / invalid / missing tables).', $bulk_failed))
+            );
+        }
+        if ($bulk_capped) {
+            printf(
+                '<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+                esc_html('Bulk action limited to the first 200 clients.')
             );
         }
     }

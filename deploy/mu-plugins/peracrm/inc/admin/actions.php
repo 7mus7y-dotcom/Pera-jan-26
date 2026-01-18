@@ -522,16 +522,17 @@ function peracrm_handle_pipeline_move_stage()
     peracrm_admin_redirect_with_notice($redirect, 'stage_moved');
 }
 
-function peracrm_pipeline_bulk_redirect($redirect, $action_key, $done, $failed)
+function peracrm_pipeline_bulk_redirect($redirect, $action_key, $done, $failed, $capped = false)
 {
-    $redirect = add_query_arg(
-        [
-            'bulk_action' => sanitize_key($action_key),
-            'bulk_done' => (int) $done,
-            'bulk_failed' => (int) $failed,
-        ],
-        $redirect
-    );
+    $args = [
+        'bulk_action' => sanitize_key($action_key),
+        'bulk_done' => (int) $done,
+        'bulk_failed' => (int) $failed,
+    ];
+    if ($capped) {
+        $args['bulk_capped'] = 1;
+    }
+    $redirect = add_query_arg($args, $redirect);
 
     wp_safe_redirect($redirect);
     exit;
@@ -555,19 +556,28 @@ function peracrm_handle_pipeline_bulk_action()
 
     $client_ids_raw = isset($_POST['client_ids']) ? (array) wp_unslash($_POST['client_ids']) : [];
     $client_ids = array_values(array_filter(array_map('absint', $client_ids_raw)));
+    $total_client_ids = count($client_ids);
+    $max_batch = 200;
+    $capped = false;
+    $skipped = 0;
+    if ($total_client_ids > $max_batch) {
+        $capped = true;
+        $skipped = $total_client_ids - $max_batch;
+        $client_ids = array_slice($client_ids, 0, $max_batch);
+    }
 
     $action_key = isset($_POST['bulk_action']) ? sanitize_key(wp_unslash($_POST['bulk_action'])) : '';
     $allowed_actions = ['move_stage', 'reassign_advisor', 'add_reminder'];
     if (!in_array($action_key, $allowed_actions, true)) {
-        peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+        peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
     }
 
     if (empty($client_ids)) {
-        peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, 0);
+        peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, 0, $capped);
     }
 
     $done = 0;
-    $failed = 0;
+    $failed = $skipped;
     $actor_id = get_current_user_id();
     $can_reassign = peracrm_admin_user_can_reassign();
     $can_override = $is_admin || ($action_key === 'reassign_advisor' && $can_reassign);
@@ -582,29 +592,29 @@ function peracrm_handle_pipeline_bulk_action()
     if ('move_stage' === $action_key) {
         $to_status = isset($_POST['to_status']) ? sanitize_key(wp_unslash($_POST['to_status'])) : '';
         if (!in_array($to_status, $allowed_statuses, true)) {
-            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
         }
     }
 
     if ('reassign_advisor' === $action_key) {
         if (!$can_reassign) {
-            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
         }
         $new_advisor = isset($_POST['advisor_user_id']) ? absint($_POST['advisor_user_id']) : 0;
         if ($new_advisor > 0 && !peracrm_user_is_valid_advisor($new_advisor)) {
-            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
         }
     }
 
     if ('add_reminder' === $action_key) {
         $has_reminders = function_exists('peracrm_reminders_table_exists') && peracrm_reminders_table_exists();
         if (!$has_reminders || !function_exists('peracrm_reminder_add')) {
-            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
         }
         $due_at_raw = isset($_POST['bulk_due_at']) ? wp_unslash($_POST['bulk_due_at']) : '';
         $due_at_mysql = peracrm_admin_parse_datetime($due_at_raw);
         if ($due_at_mysql === '') {
-            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+            peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
         }
         $reminder_note = isset($_POST['bulk_note']) ? sanitize_textarea_field(wp_unslash($_POST['bulk_note'])) : '';
         $reminder_note = trim($reminder_note);
@@ -614,7 +624,7 @@ function peracrm_handle_pipeline_bulk_action()
         if ($is_admin) {
             $reminder_advisor_id = isset($_POST['reminder_advisor_user_id']) ? absint($_POST['reminder_advisor_user_id']) : 0;
             if ($reminder_advisor_id > 0 && !peracrm_user_is_valid_advisor($reminder_advisor_id)) {
-                peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, count($client_ids));
+                peracrm_pipeline_bulk_redirect($redirect, $action_key, 0, $total_client_ids, $capped);
             }
             if ($reminder_advisor_id <= 0) {
                 $reminder_advisor_id = $actor_id;
@@ -713,7 +723,7 @@ function peracrm_handle_pipeline_bulk_action()
         }
     }
 
-    peracrm_pipeline_bulk_redirect($redirect, $action_key, $done, $failed);
+    peracrm_pipeline_bulk_redirect($redirect, $action_key, $done, $failed, $capped);
 }
 
 function peracrm_handle_link_user()
