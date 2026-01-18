@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once PERACRM_INC . '/admin/pages/work-queue.php';
+
 function peracrm_register_admin_menu()
 {
     if (!peracrm_admin_user_can_manage()) {
@@ -25,6 +27,15 @@ function peracrm_register_admin_menu()
     if ($hook) {
         $GLOBALS['peracrm_my_reminders_hook'] = $hook;
     }
+
+    add_submenu_page(
+        $parent_slug,
+        'Work Queue',
+        'Work Queue',
+        'edit_crm_clients',
+        'peracrm-work-queue',
+        'peracrm_render_work_queue_page'
+    );
 }
 
 function peracrm_admin_required_capability()
