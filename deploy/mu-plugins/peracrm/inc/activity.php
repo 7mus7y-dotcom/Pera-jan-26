@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// peracrm_activity_list is defined in repositories/activity.php.
+
 function peracrm_activity_recent_exists($client_id, $event_type, $object_id, $window_seconds)
 {
     $client_id = (int) $client_id;
