@@ -168,6 +168,133 @@ function peracrm_reminders_count_overdue_by_client($client_id)
     return $count;
 }
 
+function peracrm_reminders_count_open_by_client_ids($client_ids, $advisor_user_id = null)
+{
+    $client_ids = array_values(array_unique(array_filter(array_map('absint', (array) $client_ids))));
+    if (empty($client_ids)) {
+        return [];
+    }
+
+    $results = array_fill_keys($client_ids, 0);
+
+    if (!peracrm_reminders_table_exists()) {
+        return $results;
+    }
+
+    global $wpdb;
+    $table = peracrm_table('crm_reminders');
+    $placeholders = implode(',', array_fill(0, count($client_ids), '%d'));
+    $conditions = ["client_id IN ({$placeholders})", 'status = %s'];
+    $params = array_merge($client_ids, ['pending']);
+
+    $advisor_user_id = (int) $advisor_user_id;
+    if ($advisor_user_id > 0) {
+        $conditions[] = 'advisor_user_id = %d';
+        $params[] = $advisor_user_id;
+    }
+
+    $query = $wpdb->prepare(
+        "SELECT client_id, COUNT(*) AS open_count
+         FROM {$table}
+         WHERE " . implode(' AND ', $conditions) . '
+         GROUP BY client_id',
+        $params
+    );
+
+    $rows = $wpdb->get_results($query, ARRAY_A);
+    foreach ($rows as $row) {
+        $client_id = (int) $row['client_id'];
+        $results[$client_id] = isset($row['open_count']) ? (int) $row['open_count'] : 0;
+    }
+
+    return $results;
+}
+
+function peracrm_reminders_count_overdue_by_client_ids($client_ids, $advisor_user_id = null)
+{
+    $client_ids = array_values(array_unique(array_filter(array_map('absint', (array) $client_ids))));
+    if (empty($client_ids)) {
+        return [];
+    }
+
+    $results = array_fill_keys($client_ids, 0);
+
+    if (!peracrm_reminders_table_exists()) {
+        return $results;
+    }
+
+    global $wpdb;
+    $table = peracrm_table('crm_reminders');
+    $now_mysql = current_time('mysql');
+    $placeholders = implode(',', array_fill(0, count($client_ids), '%d'));
+    $conditions = ["client_id IN ({$placeholders})", 'status = %s', 'due_at < %s'];
+    $params = array_merge($client_ids, ['pending', $now_mysql]);
+
+    $advisor_user_id = (int) $advisor_user_id;
+    if ($advisor_user_id > 0) {
+        $conditions[] = 'advisor_user_id = %d';
+        $params[] = $advisor_user_id;
+    }
+
+    $query = $wpdb->prepare(
+        "SELECT client_id, COUNT(*) AS overdue_count
+         FROM {$table}
+         WHERE " . implode(' AND ', $conditions) . '
+         GROUP BY client_id',
+        $params
+    );
+
+    $rows = $wpdb->get_results($query, ARRAY_A);
+    foreach ($rows as $row) {
+        $client_id = (int) $row['client_id'];
+        $results[$client_id] = isset($row['overdue_count']) ? (int) $row['overdue_count'] : 0;
+    }
+
+    return $results;
+}
+
+function peracrm_reminders_next_due_by_client_ids($client_ids, $advisor_user_id = null)
+{
+    $client_ids = array_values(array_unique(array_filter(array_map('absint', (array) $client_ids))));
+    if (empty($client_ids)) {
+        return [];
+    }
+
+    $results = array_fill_keys($client_ids, '');
+
+    if (!peracrm_reminders_table_exists()) {
+        return $results;
+    }
+
+    global $wpdb;
+    $table = peracrm_table('crm_reminders');
+    $placeholders = implode(',', array_fill(0, count($client_ids), '%d'));
+    $conditions = ["client_id IN ({$placeholders})", 'status = %s'];
+    $params = array_merge($client_ids, ['pending']);
+
+    $advisor_user_id = (int) $advisor_user_id;
+    if ($advisor_user_id > 0) {
+        $conditions[] = 'advisor_user_id = %d';
+        $params[] = $advisor_user_id;
+    }
+
+    $query = $wpdb->prepare(
+        "SELECT client_id, MIN(due_at) AS next_due
+         FROM {$table}
+         WHERE " . implode(' AND ', $conditions) . '
+         GROUP BY client_id',
+        $params
+    );
+
+    $rows = $wpdb->get_results($query, ARRAY_A);
+    foreach ($rows as $row) {
+        $client_id = (int) $row['client_id'];
+        $results[$client_id] = isset($row['next_due']) ? (string) $row['next_due'] : '';
+    }
+
+    return $results;
+}
+
 function peracrm_reminders_list_for_advisor($advisor_user_id, $limit = 50, $offset = 0, $status = null, $range = null, $order = 'asc')
 {
     if (peracrm_reminders_table_exists()) {
