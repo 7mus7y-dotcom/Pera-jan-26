@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once PERACRM_INC . '/admin/metaboxes/timeline.php';
+
 function peracrm_register_metaboxes($post_type, $post)
 {
     if ('crm_client' !== $post_type) {
@@ -36,6 +38,19 @@ function peracrm_register_metaboxes($post_type, $post)
         'normal',
         'default'
     );
+
+    if ($post && peracrm_admin_is_crm_client_edit_screen($post->ID)
+        && current_user_can('edit_post', $post->ID)
+        && current_user_can('manage_options')) {
+        add_meta_box(
+            'peracrm_client_timeline',
+            'Timeline',
+            'peracrm_render_timeline_metabox',
+            'crm_client',
+            'normal',
+            'default'
+        );
+    }
 
     if ($post && current_user_can('edit_post', $post->ID)) {
         add_meta_box(
