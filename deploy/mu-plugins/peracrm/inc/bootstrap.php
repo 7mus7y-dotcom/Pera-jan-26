@@ -9,6 +9,9 @@ require_once PERACRM_INC . '/schema.php';
 require_once PERACRM_INC . '/roles.php';
 require_once PERACRM_INC . '/cpt.php';
 require_once PERACRM_INC . '/favourites.php';
+require_once PERACRM_INC . '/activity.php';
+require_once PERACRM_INC . '/activity-capture.php';
+require_once PERACRM_INC . '/enquiry-ingest.php';
 
 require_once PERACRM_INC . '/repositories/notes.php';
 require_once PERACRM_INC . '/repositories/reminders.php';

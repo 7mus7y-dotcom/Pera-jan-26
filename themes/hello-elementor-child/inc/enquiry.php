@@ -86,6 +86,7 @@ function pera_handle_citizenship_enquiry() {
         'phone'        => $phone,
         'enquiry_type' => $enquiry_type,
         'property_id'  => $property_id,
+        'form_source'  => $form_context,
       )
     );
 
@@ -213,6 +214,7 @@ function pera_handle_citizenship_enquiry() {
         'last_name'    => $name_parts['last_name'],
         'phone'        => $phone,
         'enquiry_type' => 'citizenship',
+        'form_source'  => 'citizenship',
       )
     );
 

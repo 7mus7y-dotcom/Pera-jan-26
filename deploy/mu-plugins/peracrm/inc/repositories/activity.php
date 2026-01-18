@@ -10,20 +10,15 @@ function peracrm_activity_insert($client_id, $event_type, $payload = null)
 
     $table = peracrm_table('crm_activity');
 
-    $result = $wpdb->insert(
-        $table,
-        [
-            'client_id' => (int) $client_id,
-            'event_type' => sanitize_key($event_type),
-            'event_payload' => $payload !== null ? peracrm_json_encode($payload) : null,
-            'created_at' => peracrm_now_mysql(),
-        ],
-        [
-            '%d',
-            '%s',
-            '%s',
-            '%s',
-        ]
+    $result = $wpdb->query(
+        $wpdb->prepare(
+            "INSERT INTO {$table} (client_id, event_type, event_payload, created_at)
+             VALUES (%d, %s, %s, %s)",
+            (int) $client_id,
+            sanitize_key($event_type),
+            $payload !== null ? peracrm_json_encode($payload) : null,
+            peracrm_now_mysql()
+        )
     );
 
     if (false === $result) {
@@ -33,18 +28,49 @@ function peracrm_activity_insert($client_id, $event_type, $payload = null)
     return (int) $wpdb->insert_id;
 }
 
-function peracrm_activity_list($client_id, $limit = 100, $offset = 0)
+function peracrm_activity_list($client_id, $limit = 50, $offset = 0, $event_type = null)
 {
+    $client_id = (int) $client_id;
+    $limit = (int) $limit;
+    $offset = (int) $offset;
+    $event_type = null === $event_type ? null : sanitize_key($event_type);
+
+    if ($client_id <= 0 || $limit <= 0) {
+        return [];
+    }
+
+    if (!function_exists('peracrm_activity_table_exists') || !peracrm_activity_table_exists()) {
+        return [];
+    }
+
     global $wpdb;
 
     $table = peracrm_table('crm_activity');
 
-    $query = $wpdb->prepare(
-        "SELECT * FROM {$table} WHERE client_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d",
-        (int) $client_id,
-        (int) $limit,
-        (int) $offset
-    );
+    if ($event_type) {
+        $query = $wpdb->prepare(
+            "SELECT id, client_id, event_type, event_payload, created_at
+             FROM {$table}
+             WHERE client_id = %d AND event_type = %s
+             ORDER BY created_at DESC
+             LIMIT %d OFFSET %d",
+            $client_id,
+            $event_type,
+            $limit,
+            $offset
+        );
+    } else {
+        $query = $wpdb->prepare(
+            "SELECT id, client_id, event_type, event_payload, created_at
+             FROM {$table}
+             WHERE client_id = %d
+             ORDER BY created_at DESC
+             LIMIT %d OFFSET %d",
+            $client_id,
+            $limit,
+            $offset
+        );
+    }
 
     return $wpdb->get_results($query, ARRAY_A);
 }
