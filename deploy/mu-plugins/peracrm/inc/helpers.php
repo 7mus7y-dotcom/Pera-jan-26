@@ -51,12 +51,26 @@ function peracrm_client_get_assigned_advisor_id($client_id)
         return (int) peracrm_enquiry_get_assigned_advisor_id($client_id);
     }
 
-    $advisor_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
-    if ($advisor_id > 0) {
-        return $advisor_id;
+    $assigned_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
+    $crm_id = (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+
+    if ($assigned_id > 0 && $crm_id > 0 && $assigned_id !== $crm_id) {
+        $assigned_user = get_userdata($assigned_id);
+        $crm_user = get_userdata($crm_id);
+        if ($assigned_user && (user_can($assigned_user, 'edit_crm_clients') || user_can($assigned_user, 'manage_options'))) {
+            return $assigned_id;
+        }
+        if ($crm_user) {
+            return $crm_id;
+        }
+        return $assigned_id;
     }
 
-    return (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
+    if ($assigned_id > 0) {
+        return $assigned_id;
+    }
+
+    return $crm_id;
 }
 
 function peracrm_client_get_profile($client_id)
@@ -112,7 +126,17 @@ function peracrm_client_update_profile($client_id, $data)
     }
 
     $phone = isset($data['phone']) ? preg_replace('/[^0-9+]/', '', $data['phone']) : '';
+    if (strlen($phone) > 30) {
+        $phone = substr($phone, 0, 30);
+    }
+
     $email = isset($data['email']) ? sanitize_email($data['email']) : '';
+    if ($email !== '' && !is_email($email)) {
+        $email = '';
+    }
+    if (strlen($email) > 254) {
+        $email = substr($email, 0, 254);
+    }
 
     $min = null;
     if (array_key_exists('budget_min_usd', $data)) {
