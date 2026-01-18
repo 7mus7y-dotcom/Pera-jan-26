@@ -227,7 +227,8 @@ function peracrm_render_assigned_advisor_metabox($post)
         }
     }
 
-    $can_reassign = current_user_can('manage_options') || current_user_can('peracrm_manage_assignments');
+    $can_reassign = current_user_can('edit_post', $post->ID)
+        && (current_user_can('manage_options') || current_user_can('peracrm_manage_assignments'));
 
     echo '<div class="peracrm-metabox">';
     echo '<p><strong>Current advisor:</strong> ' . esc_html($advisor_name) . '</p>';
