@@ -54,3 +54,38 @@
     background: #f0f0f1;
     color: #1d2327;
 }
+
+.peracrm-pipeline .peracrm-filters {
+    margin: 12px 0 20px;
+}
+
+.peracrm-pipeline-board {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.peracrm-pipeline-column__header {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.peracrm-pipeline-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.peracrm-pipeline-card__title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.peracrm-pipeline-card__meta {
+    color: #646970;
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+}
