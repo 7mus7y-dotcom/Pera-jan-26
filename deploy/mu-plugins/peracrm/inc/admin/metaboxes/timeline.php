@@ -34,16 +34,40 @@ function peracrm_admin_is_crm_client_edit_screen($post_id = 0)
 
 function peracrm_render_timeline_metabox($post)
 {
-    $post_id = $post ? (int) $post->ID : 0;
-    if ($post_id <= 0) {
+    if (!$post || empty($post->ID)) {
+        return;
+    }
+
+    $post_id = (int) $post->ID;
+    $post_status = isset($post->post_status) ? (string) $post->post_status : '';
+    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    if ($should_log) {
+        $start = microtime(true);
+        error_log(sprintf('%s peracrm_client_timeline post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+    }
+
+    if ($post_status === 'auto-draft') {
+        echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
+        if ($should_log) {
+            $duration = microtime(true) - $start;
+            error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+        }
         return;
     }
 
     if (!peracrm_admin_is_crm_client_edit_screen($post_id)) {
+        if ($should_log) {
+            $duration = microtime(true) - $start;
+            error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+        }
         return;
     }
 
     if (!current_user_can('edit_post', $post_id) || !current_user_can('manage_options')) {
+        if ($should_log) {
+            $duration = microtime(true) - $start;
+            error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+        }
         return;
     }
 
@@ -94,6 +118,11 @@ function peracrm_render_timeline_metabox($post)
     }
 
     echo '</div>';
+
+    if ($should_log) {
+        $duration = microtime(true) - $start;
+        error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+    }
 }
 
 function peracrm_timeline_get_items($client_id, $limit = 50, $type = 'all')
