@@ -34,39 +34,46 @@ function peracrm_admin_is_crm_client_edit_screen($post_id = 0)
 
 function peracrm_render_timeline_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_client_timeline post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox timeline start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox timeline end client=%d', $post_id));
         }
         return;
     }
 
     if (!peracrm_admin_is_crm_client_edit_screen($post_id)) {
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox timeline end client=%d', $post_id));
         }
         return;
     }
 
     if (!current_user_can('edit_post', $post_id) || !current_user_can('manage_options')) {
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox timeline end client=%d', $post_id));
+        }
+        return;
+    }
+
+    $has_notes_table = function_exists('peracrm_notes_table_exists') && peracrm_notes_table_exists();
+    $has_reminders_table = function_exists('peracrm_reminders_table_exists') && peracrm_reminders_table_exists();
+    $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    if (!$has_notes_table && !$has_reminders_table && !$has_activity_table) {
+        echo '<p class="peracrm-empty">Unavailable (missing table).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox timeline end client=%d', $post_id));
         }
         return;
     }
@@ -120,8 +127,7 @@ function peracrm_render_timeline_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_client_timeline duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox timeline end client=%d', $post_id));
     }
 }
 

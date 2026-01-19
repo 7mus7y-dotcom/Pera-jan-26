@@ -6,12 +6,36 @@ if (!defined('ABSPATH')) {
 
 require_once PERACRM_INC . '/admin/metaboxes/timeline.php';
 
+function peracrm_admin_disable_client_metaboxes()
+{
+    return defined('PERACRM_DISABLE_CLIENT_METABOXES') && PERACRM_DISABLE_CLIENT_METABOXES;
+}
+
+function peracrm_admin_is_metabox_disabled($constant)
+{
+    return defined($constant) && constant($constant);
+}
+
 function peracrm_register_metaboxes($post_type, $post)
 {
     if ('crm_client' !== $post_type) {
         return;
     }
 
+    $post_id = $post && isset($post->ID) ? (int) $post->ID : 0;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
+    if ($should_log) {
+        error_log(sprintf('[peracrm] register crm_client metaboxes start post_id=%d', $post_id));
+    }
+
+    if (peracrm_admin_disable_client_metaboxes()) {
+        if ($should_log) {
+            error_log(sprintf('[peracrm] register crm_client metaboxes disabled post_id=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_PROFILE_METABOX')) {
     add_meta_box(
         'peracrm_client_profile',
         'Client Profile',
@@ -20,7 +44,9 @@ function peracrm_register_metaboxes($post_type, $post)
         'normal',
         'high'
     );
+    }
 
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_NOTES_METABOX')) {
     add_meta_box(
         'peracrm_notes',
         'Advisor Notes',
@@ -29,7 +55,9 @@ function peracrm_register_metaboxes($post_type, $post)
         'normal',
         'default'
     );
+    }
 
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_REMINDERS_METABOX')) {
     add_meta_box(
         'peracrm_reminders',
         'Reminders',
@@ -38,10 +66,12 @@ function peracrm_register_metaboxes($post_type, $post)
         'normal',
         'default'
     );
+    }
 
     if ($post && peracrm_admin_is_crm_client_edit_screen($post->ID)
         && current_user_can('edit_post', $post->ID)
-        && current_user_can('manage_options')) {
+        && current_user_can('manage_options')
+        && !peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_TIMELINE_METABOX')) {
         add_meta_box(
             'peracrm_client_timeline',
             'Timeline',
@@ -52,7 +82,9 @@ function peracrm_register_metaboxes($post_type, $post)
         );
     }
 
-    if ($post && current_user_can('edit_post', $post->ID)) {
+    if ($post
+        && current_user_can('edit_post', $post->ID)
+        && !peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_ACTIVITY_METABOX')) {
         add_meta_box(
             'peracrm_activity_timeline',
             'Activity Timeline',
@@ -63,62 +95,72 @@ function peracrm_register_metaboxes($post_type, $post)
         );
     }
 
-    add_meta_box(
-        'peracrm_properties',
-        'Linked Properties',
-        'peracrm_render_properties_metabox',
-        'crm_client',
-        'side',
-        'default'
-    );
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_PROPERTIES_METABOX')) {
+        add_meta_box(
+            'peracrm_properties',
+            'Linked Properties',
+            'peracrm_render_properties_metabox',
+            'crm_client',
+            'side',
+            'default'
+        );
+    }
 
-    add_meta_box(
-        'peracrm_account_link',
-        'Account',
-        'peracrm_render_account_metabox',
-        'crm_client',
-        'side',
-        'default'
-    );
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_ACCOUNT_METABOX')) {
+        add_meta_box(
+            'peracrm_account_link',
+            'Account',
+            'peracrm_render_account_metabox',
+            'crm_client',
+            'side',
+            'default'
+        );
+    }
 
-    add_meta_box(
-        'peracrm_client_health',
-        'Client Health',
-        'peracrm_render_client_health_metabox',
-        'crm_client',
-        'side',
-        'default'
-    );
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_HEALTH_METABOX')) {
+        add_meta_box(
+            'peracrm_client_health',
+            'Client Health',
+            'peracrm_render_client_health_metabox',
+            'crm_client',
+            'side',
+            'default'
+        );
+    }
 
-    add_meta_box(
-        'peracrm_assigned_advisor',
-        'Assigned Advisor',
-        'peracrm_render_assigned_advisor_metabox',
-        'crm_client',
-        'side',
-        'default'
-    );
+    if (!peracrm_admin_is_metabox_disabled('PERACRM_DISABLE_ASSIGNED_ADVISOR_METABOX')) {
+        add_meta_box(
+            'peracrm_assigned_advisor',
+            'Assigned Advisor',
+            'peracrm_render_assigned_advisor_metabox',
+            'crm_client',
+            'side',
+            'default'
+        );
+    }
+
+    if ($should_log) {
+        error_log(sprintf('[peracrm] register crm_client metaboxes end post_id=%d', $post_id));
+    }
 }
 
 function peracrm_render_client_profile_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_client_profile post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox profile start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_profile duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox profile end client=%d', $post_id));
         }
         return;
     }
@@ -249,37 +291,40 @@ function peracrm_render_client_profile_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_client_profile duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox profile end client=%d', $post_id));
     }
 }
 
 function peracrm_render_assigned_advisor_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_assigned_advisor post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox assigned_advisor start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_assigned_advisor duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox assigned_advisor end client=%d', $post_id));
         }
         return;
     }
 
-    $advisor_id = function_exists('peracrm_client_get_assigned_advisor_id')
-        ? (int) peracrm_client_get_assigned_advisor_id($post->ID)
-        : 0;
+    if (!function_exists('peracrm_client_get_assigned_advisor_id')) {
+        echo '<p class="peracrm-empty">Unavailable (missing helper).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox assigned_advisor end client=%d', $post_id));
+        }
+        return;
+    }
+
+    $advisor_id = (int) peracrm_client_get_assigned_advisor_id($post->ID);
 
     $advisor_name = 'Unassigned';
     if ($advisor_id > 0) {
@@ -299,8 +344,7 @@ function peracrm_render_assigned_advisor_metabox($post)
         echo '<p>You do not have permission to reassign advisors.</p>';
         echo '</div>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_assigned_advisor duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox assigned_advisor end client=%d', $post_id));
         }
         return;
     }
@@ -337,39 +381,52 @@ function peracrm_render_assigned_advisor_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_assigned_advisor duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox assigned_advisor end client=%d', $post_id));
     }
 }
 
 function peracrm_render_notes_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_notes post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox notes start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_notes duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox notes end client=%d', $post_id));
         }
         return;
     }
 
-    if (!peracrm_admin_user_can_manage()) {
+    $can_manage = function_exists('peracrm_admin_user_can_manage') && peracrm_admin_user_can_manage();
+    if (!$can_manage) {
         echo '<p>You do not have permission to view CRM notes.</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_notes duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox notes end client=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!function_exists('peracrm_notes_table_exists') || !peracrm_notes_table_exists()) {
+        echo '<p class="peracrm-empty">Unavailable (missing table).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox notes end client=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!function_exists('peracrm_notes_list') || !function_exists('peracrm_notes_count')) {
+        echo '<p class="peracrm-empty">Unavailable (missing helper).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox notes end client=%d', $post_id));
         }
         return;
     }
@@ -431,39 +488,52 @@ function peracrm_render_notes_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_notes duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox notes end client=%d', $post_id));
     }
 }
 
 function peracrm_render_reminders_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_reminders post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox reminders start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_reminders duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox reminders end client=%d', $post_id));
         }
         return;
     }
 
-    if (!peracrm_admin_user_can_manage()) {
+    $can_manage = function_exists('peracrm_admin_user_can_manage') && peracrm_admin_user_can_manage();
+    if (!$can_manage) {
         echo '<p>You do not have permission to view CRM reminders.</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_reminders duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox reminders end client=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!function_exists('peracrm_reminders_table_exists') || !peracrm_reminders_table_exists()) {
+        echo '<p class="peracrm-empty">Unavailable (missing table).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox reminders end client=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!function_exists('peracrm_reminders_list_for_client') || !function_exists('peracrm_reminders_count_for_client')) {
+        echo '<p class="peracrm-empty">Unavailable (missing helper).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox reminders end client=%d', $post_id));
         }
         return;
     }
@@ -569,39 +639,36 @@ function peracrm_render_reminders_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_reminders duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox reminders end client=%d', $post_id));
     }
 }
 
 function peracrm_render_client_health_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_client_health post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox health start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_health duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox health end client=%d', $post_id));
         }
         return;
     }
 
-    if (!peracrm_admin_user_can_manage()) {
+    $can_manage = function_exists('peracrm_admin_user_can_manage') && peracrm_admin_user_can_manage();
+    if (!$can_manage) {
         echo '<p>You do not have permission to view client health.</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_health duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox health end client=%d', $post_id));
         }
         return;
     }
@@ -609,8 +676,17 @@ function peracrm_render_client_health_metabox($post)
     if (!function_exists('peracrm_client_health_get')) {
         echo '<p class="peracrm-empty">Health data unavailable.</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_client_health duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox health end client=%d', $post_id));
+        }
+        return;
+    }
+
+    $has_activity_table = function_exists('peracrm_activity_table_exists') && peracrm_activity_table_exists();
+    $has_reminders_table = function_exists('peracrm_reminders_table_exists') && peracrm_reminders_table_exists();
+    if (!$has_activity_table && !$has_reminders_table) {
+        echo '<p class="peracrm-empty">Unavailable (missing table).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox health end client=%d', $post_id));
         }
         return;
     }
@@ -651,38 +727,50 @@ function peracrm_render_client_health_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_client_health duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox health end client=%d', $post_id));
     }
 }
 
 function peracrm_render_activity_timeline_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_activity_timeline post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox activity start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_activity_timeline duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox activity end client=%d', $post_id));
         }
         return;
     }
 
     if (!current_user_can('edit_post', $post->ID)) {
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_activity_timeline duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox activity end client=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!function_exists('peracrm_activity_table_exists') || !peracrm_activity_table_exists()) {
+        echo '<p class="peracrm-empty">Unavailable (missing table).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox activity end client=%d', $post_id));
+        }
+        return;
+    }
+
+    if (!function_exists('peracrm_activity_list') || !function_exists('peracrm_activity_count')) {
+        echo '<p class="peracrm-empty">Unavailable (missing helper).</p>';
+        if ($should_log) {
+            error_log(sprintf('[peracrm] metabox activity end client=%d', $post_id));
         }
         return;
     }
@@ -785,30 +873,27 @@ function peracrm_render_activity_timeline_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_activity_timeline duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox activity end client=%d', $post_id));
     }
 }
 
 function peracrm_render_properties_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_properties post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox properties start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_properties duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox properties end client=%d', $post_id));
         }
         return;
     }
@@ -855,30 +940,27 @@ function peracrm_render_properties_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_properties duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox properties end client=%d', $post_id));
     }
 }
 
 function peracrm_render_account_metabox($post)
 {
-    if (!$post || empty($post->ID)) {
+    if (!$post || empty($post->ID) || ($post->post_type ?? '') !== 'crm_client') {
         return;
     }
 
     $post_id = (int) $post->ID;
     $post_status = isset($post->post_status) ? (string) $post->post_status : '';
-    $should_log = defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG;
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
     if ($should_log) {
-        $start = microtime(true);
-        error_log(sprintf('%s peracrm_account post_id=%d post_status=%s start=%s', __FILE__, $post_id, $post_status, $start));
+        error_log(sprintf('[peracrm] metabox account start client=%d', $post_id));
     }
 
     if ($post_status === 'auto-draft') {
         echo '<p>' . esc_html('Save draft to enable CRM panels.') . '</p>';
         if ($should_log) {
-            $duration = microtime(true) - $start;
-            error_log(sprintf('%s peracrm_account duration=%s', __FILE__, $duration));
+            error_log(sprintf('[peracrm] metabox account end client=%d', $post_id));
         }
         return;
     }
@@ -924,7 +1006,6 @@ function peracrm_render_account_metabox($post)
     echo '</div>';
 
     if ($should_log) {
-        $duration = microtime(true) - $start;
-        error_log(sprintf('%s peracrm_account duration=%s', __FILE__, $duration));
+        error_log(sprintf('[peracrm] metabox account end client=%d', $post_id));
     }
 }
