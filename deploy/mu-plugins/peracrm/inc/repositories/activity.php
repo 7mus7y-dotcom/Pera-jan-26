@@ -6,6 +6,10 @@ if (!defined('ABSPATH')) {
 
 function peracrm_activity_insert($client_id, $event_type, $payload = null)
 {
+    if (!function_exists('peracrm_activity_table_exists') || !peracrm_activity_table_exists()) {
+        return 0;
+    }
+
     global $wpdb;
 
     $table = peracrm_table('crm_activity');
