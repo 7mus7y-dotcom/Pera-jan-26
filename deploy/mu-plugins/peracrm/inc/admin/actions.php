@@ -212,6 +212,10 @@ function peracrm_admin_get_advisor_reminders_until($advisor_user_id, $until_mysq
 
 function peracrm_admin_get_client_property_count($client_id, $relation_type)
 {
+    if (!function_exists('peracrm_client_property_table_exists') || !peracrm_client_property_table_exists()) {
+        return 0;
+    }
+
     global $wpdb;
 
     $table = peracrm_table('crm_client_property');
@@ -1140,8 +1144,18 @@ function peracrm_handle_save_client_profile()
 
     check_admin_referer('peracrm_save_client_profile');
 
+    $post_type = get_post_type($client_id);
+    if ($post_type !== 'crm_client') {
+        wp_die('Invalid client.');
+    }
+
     if (!current_user_can('edit_post', $client_id)) {
         wp_die('You do not have permission to edit this client.');
+    }
+
+    $should_log = defined('WP_DEBUG') && WP_DEBUG;
+    if ($should_log) {
+        error_log('[peracrm] peracrm_handle_save_client_profile start post_id=' . $client_id);
     }
 
     $status = isset($_POST['peracrm_status']) ? sanitize_key(wp_unslash($_POST['peracrm_status'])) : '';
@@ -1183,7 +1197,14 @@ function peracrm_handle_save_client_profile()
     }
 
     if (!$success) {
+        if ($should_log) {
+            error_log('[peracrm] peracrm_handle_save_client_profile end post_id=' . $client_id . ' success=0');
+        }
         peracrm_admin_redirect_with_notice($redirect, 'profile_failed');
+    }
+
+    if ($should_log) {
+        error_log('[peracrm] peracrm_handle_save_client_profile end post_id=' . $client_id . ' success=1');
     }
 
     peracrm_admin_redirect_with_notice($redirect, 'profile_saved');
