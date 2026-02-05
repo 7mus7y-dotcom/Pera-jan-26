@@ -7,6 +7,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+if ( defined('PERA_CRM_DISABLED') && PERA_CRM_DISABLED ) {
+    return;
+}
+
 if (!defined('PERACRM_MAIN_FILE')) {
     define('PERACRM_MAIN_FILE', __FILE__);
 }
