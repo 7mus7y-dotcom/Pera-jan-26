@@ -11,22 +11,29 @@ function peracrm_find_or_create_client_by_email($email, array $data = [])
         return 0;
     }
 
-    $existing = get_posts([
-        'post_type' => 'crm_client',
-        'posts_per_page' => 1,
-        'post_status' => 'any',
-        'fields' => 'ids',
-        'meta_query' => [
-            [
-                'key' => 'crm_primary_email',
-                'value' => $email,
-                'compare' => '=',
+    if (function_exists('peracrm_find_client_by_email')) {
+        $existing_id = (int) peracrm_find_client_by_email($email);
+        if ($existing_id > 0) {
+            return $existing_id;
+        }
+    } else {
+        $existing = get_posts([
+            'post_type' => 'crm_client',
+            'posts_per_page' => 1,
+            'post_status' => 'any',
+            'fields' => 'ids',
+            'meta_query' => [
+                [
+                    'key' => 'crm_primary_email',
+                    'value' => $email,
+                    'compare' => '=',
+                ],
             ],
-        ],
-    ]);
+        ]);
 
-    if (!empty($existing)) {
-        return (int) $existing[0];
+        if (!empty($existing)) {
+            return (int) $existing[0];
+        }
     }
 
     $first_name = isset($data['first_name']) ? sanitize_text_field($data['first_name']) : '';
@@ -53,7 +60,18 @@ function peracrm_find_or_create_client_by_email($email, array $data = [])
     $status = isset($data['status']) ? sanitize_key($data['status']) : 'enquiry';
     $assigned_advisor = isset($data['assigned_advisor']) ? (int) $data['assigned_advisor'] : 0;
 
+    $normalized_email = function_exists('peracrm_normalize_email')
+        ? peracrm_normalize_email($email)
+        : strtolower(trim((string) $email));
+
     update_post_meta($post_id, 'crm_primary_email', $email);
+    update_post_meta($post_id, 'primary_email', $email);
+
+    if ($normalized_email !== '') {
+        update_post_meta($post_id, 'crm_primary_email_normalized', $normalized_email);
+        update_post_meta($post_id, 'primary_email_normalized', $normalized_email);
+    }
+
     update_post_meta($post_id, 'crm_first_name', $first_name);
     update_post_meta($post_id, 'crm_last_name', $last_name);
     update_post_meta($post_id, 'crm_phone', $phone);
