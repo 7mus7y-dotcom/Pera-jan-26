@@ -59,16 +59,19 @@ function peracrm_client_get_assigned_advisor_id($client_id)
     $assigned_id = (int) get_post_meta($client_id, 'assigned_advisor_user_id', true);
     $crm_id = (int) get_post_meta($client_id, 'crm_assigned_advisor', true);
 
-    if (peracrm_user_is_valid_advisor($assigned_id)) {
-        return $assigned_id;
-    }
+    if (function_exists('peracrm_user_is_valid_advisor')) {
+        if (peracrm_user_is_valid_advisor($assigned_id)) {
+            return $assigned_id;
+        }
 
-    if (peracrm_user_is_valid_advisor($crm_id)) {
-        return $crm_id;
+        if (peracrm_user_is_valid_advisor($crm_id)) {
+            return $crm_id;
+        }
     }
 
     return 0;
 }
+
 
 function peracrm_client_get_profile($client_id)
 {
